@@ -1,0 +1,10 @@
+{
+  "framework": "express",
+  "database": "postgresql",
+  "output_dir": "backend",
+  "features": {
+    "docker": true,
+    "testing": true,
+    "swagger": true
+  }
+}

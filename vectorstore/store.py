@@ -28,6 +28,9 @@ class VectorStore:
         elif backend_type == VectorStoreBackend.QDRANT:
             from vectorstore.backends.qdrant import QdrantBackend
             self._backend = QdrantBackend()
+        elif backend_type == VectorStoreBackend.MONGODB:
+            from vectorstore.backends.mongodb import MongoDBBackend
+            self._backend = MongoDBBackend()
         else:
             from vectorstore.backends.memory import MemoryBackend
             self._backend = MemoryBackend()

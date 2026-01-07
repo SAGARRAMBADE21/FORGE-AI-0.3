@@ -226,10 +226,22 @@ def backend_add_model(
     field_list = []
     if fields:
         try:
-            field_list = json.loads(fields)
-        except json.JSONDecodeError as e:
+            # Handle both escaped and unescaped JSON
+            import re
+            # Replace single quotes with double quotes if present
+            fields_cleaned = fields.replace("'", '"')
+            field_list = json.loads(fields_cleaned)
+            
+            # Validate structure
+            if not isinstance(field_list, list):
+                raise ValueError("Fields must be a JSON array")
+            for field in field_list:
+                if not isinstance(field, dict) or 'name' not in field or 'type' not in field:
+                    raise ValueError("Each field must have 'name' and 'type' properties")
+        except (json.JSONDecodeError, ValueError) as e:
             console.print(f"[red]Invalid fields JSON: {e}[/]")
             console.print(f"[yellow]Expected format: '[{{\"name\":\"field1\",\"type\":\"string\"}}]'[/]")
+            console.print(f"[yellow]Example: -f '[{{\"name\":\"id\",\"type\":\"string\"}},{{\"name\":\"title\",\"type\":\"string\"}}]'[/]")
             raise typer.Exit(1)
 
     result = asyncio.run(agent.add_model(name, field_list))
@@ -344,6 +356,7 @@ def status(path: Path = typer.Argument(".", help="Project path")):
         return
 
     # Load config
+    config = {}
     config_file = codegen_dir / "config.json"
     if config_file.exists():
         config = json.loads(config_file.read_text())
@@ -377,39 +390,98 @@ def status(path: Path = typer.Argument(".", help="Project path")):
 def chat(
     path: Path = typer.Argument(".", help="Project path"),
     file: str = typer.Option(None, "-f", "--file", help="Current file context"),
+    no_index: bool = typer.Option(False, "--no-index", help="Skip codebase indexing"),
 ):
-    """Interactive chat with the code agent."""
+    """Interactive chat with the code agent (Cursor-like interface)."""
+    
+    if no_index:
+        console.print("[yellow]⚠ Running in no-index mode - codebase features disabled[/]")
+        _display_chat_welcome()
+        console.print("\n[dim]No-index mode: Only natural language chat available[/]\n")
+        
+        # Simple chat loop without agent
+        while True:
+            try:
+                message = _get_user_input(console, file)
+                if not message:
+                    continue
+                
+                if message.startswith('/'):
+                    if message.lower().strip() in ('/exit', '/quit', '/q'):
+                        break
+                    elif message.lower().strip() == '/help':
+                        console.print("\n[yellow]No-index mode - Limited commands:[/]")
+                        console.print("  [cyan]/exit[/] - Exit chat")
+                        console.print("\n[dim]Tip: Run without --no-index to enable full features[/]")
+                    else:
+                        console.print("[yellow]Command not available in no-index mode[/]")
+                    continue
+                
+                console.print(f"\n[bold green]🤖 Agent >[/] No-index mode: Please run without --no-index flag to enable AI features.")
+                
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Use /exit to quit[/]")
+                try:
+                    import time
+                    time.sleep(2)
+                except KeyboardInterrupt:
+                    break
+            except EOFError:
+                break
+        
+        console.print("\n[yellow]👋 Goodbye![/]")
+        return
+    
     agent = FullStackAgent(path)
 
     with console.status("Initializing..."):
         asyncio.run(agent.initialize())
 
-    console.print("[green]Agent ready. Type 'exit' to quit.[/]\n")
+    # Display welcome banner
+    _display_chat_welcome()
 
+    # Chat history
+    history = []
+    
     while True:
         try:
-            message = console.input("[bold blue]You:[/] ")
+            # Get user input with enhanced prompt
+            message = _get_user_input(console, file)
             
-            if message.lower() in ('exit', 'quit', 'q'):
-                break
-
-            if not message.strip():
+            if not message:
                 continue
 
-            response = asyncio.run(agent.chat(message, file))
+            # Handle special commands
+            if message.startswith('/'):
+                if _handle_special_command(message, console, agent, history, file):
+                    continue
+                else:
+                    break
 
-            console.print(f"\n[bold green]Agent:[/] {response['response']}")
+            # Add to history
+            history.append({'role': 'user', 'content': message})
 
-            if response['actions']:
-                for action in response['actions']:
-                    console.print(f"  [dim]Action: {action['type']}[/]")
+            # Show thinking indicator
+            with console.status("[cyan]Thinking..."):
+                response = asyncio.run(agent.chat(message, file))
 
-            console.print()
+            # Display response
+            _display_agent_response(console, response)
+
+            # Add to history
+            history.append({'role': 'agent', 'content': response['response']})
 
         except KeyboardInterrupt:
+            console.print("\n[yellow]Use /exit to quit or press Ctrl+C again to force quit[/]")
+            try:
+                import time
+                time.sleep(2)
+            except KeyboardInterrupt:
+                break
+        except EOFError:
             break
 
-    console.print("\n[yellow]Goodbye![/]")
+    console.print("\n[yellow]👋 Goodbye![/]")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -538,6 +610,171 @@ async def _watch_loop(agent):
     except KeyboardInterrupt:
         agent.stop_watching()
         console.print("\n[yellow]Stopped watching[/]")
+
+
+def _display_chat_welcome():
+    """Display welcome banner for chat mode."""
+    console.print("\n" + "═" * 70)
+    console.print("[bold cyan]🤖 FORGE Code Agent - Interactive Mode[/]")
+    console.print("═" * 70)
+    console.print("\n[dim]Commands:[/]")
+    console.print("  [cyan]/help[/]     - Show available commands")
+    console.print("  [cyan]/search[/]   - Search codebase")
+    console.print("  [cyan]/analyze[/]  - Analyze current file")
+    console.print("  [cyan]/generate[/] - Generate code")
+    console.print("  [cyan]/clear[/]    - Clear conversation history")
+    console.print("  [cyan]/exit[/]     - Exit chat mode")
+    console.print("\n[dim]Tips:[/]")
+    console.print("  • Press Enter twice to submit multi-line input")
+    console.print("  • Use Ctrl+C to interrupt")
+    console.print("  • Specify file context with -f flag or mention files in your message")
+    console.print("\n" + "═" * 70 + "\n")
+
+
+def _get_user_input(console, current_file=None) -> str:
+    """Get user input with enhanced prompt."""
+    context_indicator = f"[dim]({current_file})[/] " if current_file else ""
+    
+    # Single line input by default
+    try:
+        first_line = console.input(f"\n{context_indicator}[bold blue]You >[/] ")
+        
+        if not first_line.strip():
+            return ""
+        
+        # Check if user wants multi-line (ends with backslash or triple quotes)
+        if first_line.strip().endswith('\\') or first_line.strip().startswith('```'):
+            lines = [first_line.rstrip('\\')]
+            console.print("[dim](Multi-line mode - press Enter twice to submit)[/]")
+            
+            empty_count = 0
+            while empty_count < 2:
+                line = console.input("[blue]...[/] ")
+                if not line.strip():
+                    empty_count += 1
+                else:
+                    empty_count = 0
+                    lines.append(line)
+                
+                if line.strip() == '```':
+                    break
+            
+            return '\n'.join(lines).strip()
+        
+        return first_line
+        
+    except (EOFError, KeyboardInterrupt):
+        raise
+
+
+def _handle_special_command(command: str, console, agent, history, current_file) -> bool:
+    """Handle special commands. Returns True to continue, False to exit."""
+    cmd = command.lower().strip()
+    
+    if cmd in ('/exit', '/quit', '/q'):
+        return False
+    
+    elif cmd == '/help':
+        console.print("\n[bold]Available Commands:[/]")
+        console.print("  [cyan]/help[/]              - Show this help message")
+        console.print("  [cyan]/search <query>[/]    - Search codebase semantically")
+        console.print("  [cyan]/analyze[/]           - Analyze current file or project")
+        console.print("  [cyan]/generate <desc>[/]   - Generate code from description")
+        console.print("  [cyan]/symbols <query>[/]   - Search for symbols")
+        console.print("  [cyan]/clear[/]             - Clear conversation history")
+        console.print("  [cyan]/history[/]           - Show conversation history")
+        console.print("  [cyan]/context[/]           - Show current file context")
+        console.print("  [cyan]/exit[/]              - Exit chat mode")
+        console.print("\n[bold]Natural Language:[/]")
+        console.print("  Just type your question or request naturally!")
+        console.print("  Examples:")
+        console.print("    • \"Find all API endpoints\"")
+        console.print("    • \"Generate a user authentication backend\"")
+        console.print("    • \"Explain how the indexer works\"")
+        console.print("    • \"Add a new endpoint for user profile\"")
+    
+    elif cmd == '/clear':
+        history.clear()
+        console.print("[green]✓ Conversation history cleared[/]")
+    
+    elif cmd == '/history':
+        if not history:
+            console.print("[dim]No conversation history yet[/]")
+        else:
+            console.print("\n[bold]Conversation History:[/]")
+            for i, entry in enumerate(history, 1):
+                role_color = "blue" if entry['role'] == 'user' else "green"
+                role_name = "You" if entry['role'] == 'user' else "Agent"
+                console.print(f"\n[{role_color}]{i}. {role_name}:[/] {entry['content'][:100]}...")
+    
+    elif cmd == '/context':
+        if current_file:
+            console.print(f"[cyan]Current file context:[/] {current_file}")
+        else:
+            console.print("[dim]No file context set. Use -f flag when starting chat.[/]")
+    
+    elif cmd.startswith('/search '):
+        query = cmd[8:].strip()
+        if query:
+            with console.status("Searching..."):
+                results = asyncio.run(agent.search(query, top_k=5))
+            console.print(f"\n[green]Found {results.total_count} results[/]")
+            for i, result in enumerate(results.results[:5], 1):
+                console.print(f"\n{i}. [cyan]{result.chunk.file}[/] L{result.chunk.start_line}-{result.chunk.end_line}")
+                console.print(f"   [dim]{result.chunk.content[:150]}...[/]")
+        else:
+            console.print("[yellow]Usage: /search <query>[/]")
+    
+    elif cmd.startswith('/symbols '):
+        query = cmd[9:].strip()
+        if query:
+            results = agent.search_symbols(query, max_results=10)
+            console.print(f"\n[green]Found {len(results)} symbols[/]")
+            for sym in results:
+                console.print(f"  [cyan]{sym.name}[/] ({sym.kind.value}) - {sym.file}")
+        else:
+            console.print("[yellow]Usage: /symbols <query>[/]")
+    
+    elif cmd == '/analyze':
+        with console.status("Analyzing..."):
+            analysis = asyncio.run(agent.analyze_frontend())
+        _display_frontend_analysis(analysis)
+    
+    elif cmd.startswith('/generate '):
+        description = cmd[10:].strip()
+        if description:
+            console.print(f"[cyan]Generating code for:[/] {description}")
+            console.print("[dim]This will analyze your frontend and generate matching backend...[/]")
+            # This would trigger the generation flow
+            console.print("[yellow]Feature coming soon![/]")
+        else:
+            console.print("[yellow]Usage: /generate <description>[/]")
+    
+    else:
+        console.print(f"[yellow]Unknown command: {cmd}[/]")
+        console.print("[dim]Type /help for available commands[/]")
+    
+    return True
+
+
+def _display_agent_response(console, response: dict):
+    """Display agent response with rich formatting."""
+    console.print(f"\n[bold green]🤖 Agent >[/] {response['response']}")
+    
+    # Display actions if any
+    if response.get('actions'):
+        console.print("\n[dim]Actions:[/]")
+        for action in response['actions']:
+            action_type = action.get('type', 'unknown')
+            console.print(f"  [cyan]→[/] {action_type}")
+    
+    # Display context used if available
+    if response.get('context_used'):
+        context = response['context_used']
+        if len(context) > 200:
+            console.print(f"\n[dim]Context: {context[:200]}...[/]")
+        else:
+            console.print(f"\n[dim]Context: {context}[/]")
 
 
 if __name__ == "__main__":

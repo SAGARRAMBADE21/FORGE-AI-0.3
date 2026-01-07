@@ -42,6 +42,7 @@ class VectorStoreBackend(str, Enum):
     MEMORY = "memory"
     CHROMADB = "chromadb"
     QDRANT = "qdrant"
+    MONGODB = "mongodb"
 
 
 EXTENSION_MAP: dict[str, Language] = {
@@ -89,7 +90,7 @@ class ParserConfig:
     incremental: bool = True
     skip_dirs: set[str] = field(default_factory=lambda: {
         "node_modules", "__pycache__", ".git", "dist", "build",
-        ".next", ".nuxt", "coverage", ".venv", "venv", "target",
+        ".next", ".nuxt", "coverage", ".venv", "venv", "env", "target",
         "vendor", ".cache", "out", ".idea", ".vscode", "bin", "obj"
     })
 
@@ -113,7 +114,7 @@ class EmbeddingConfig:
     openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     voyage_model: str = "voyage-code-2"
     voyage_api_key: str = field(default_factory=lambda: os.getenv("VOYAGE_API_KEY", ""))
-    local_model: str = "all-MiniLM-L6-v2"
+    local_model: str = "microsoft/graphcodebert-base"
     batch_size: int = 100
     cache_enabled: bool = True
     cache_dir: Path = field(default_factory=lambda: Path.home() / ".code_indexer" / "cache")
@@ -123,9 +124,14 @@ class EmbeddingConfig:
 
 @dataclass
 class VectorStoreConfig:
-    backend: VectorStoreBackend = VectorStoreBackend.CHROMADB
+    backend: VectorStoreBackend = VectorStoreBackend.CHROMADB  # Changed from MONGODB to CHROMADB for local storage
     persist_dir: Path = field(default_factory=lambda: Path.home() / ".code_indexer" / "vectorstore")
     collection: str = "code_chunks"
+    # MongoDB Atlas specific settings
+    mongodb_uri: str = field(default_factory=lambda: os.getenv("MONGODB_URI", ""))
+    mongodb_database: str = field(default_factory=lambda: os.getenv("MONGODB_DATABASE", "code_indexer"))
+    mongodb_collection: str = field(default_factory=lambda: os.getenv("MONGODB_COLLECTION", "code_chunks"))
+    mongodb_index: str = field(default_factory=lambda: os.getenv("MONGODB_INDEX", "vector_index"))
 
 
 @dataclass

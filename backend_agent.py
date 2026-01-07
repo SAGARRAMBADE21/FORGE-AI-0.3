@@ -3,13 +3,15 @@
 import logging
 from pathlib import Path
 from typing import Callable
+from datetime import datetime
 
 from core.types import (
     TaskType, TaskStatus, TaskPlan, BackendArchitecture,
     FrontendAnalysis, GenerationResult, InferredModel,
     InferredRelation, ApiResourceContract, AuthRequirements,
-    GeneratedFile, FileChange, ChangeType
+    GeneratedFile, FileChange, ChangeType, ChangeSet
 )
+from core.utils import generate_id
 from config.templates_config import TemplateConfig
 from indexers.unified_indexer import UnifiedIndexer
 from analyzers.frontend_analyzer import FrontendAnalyzer
@@ -109,6 +111,13 @@ class BackendAgent:
         self._runtime.register_action('generate_service_method', self._action_generate_service_method)
         self._runtime.register_action('update_routes', self._action_update_routes)
         self._runtime.register_action('generate_validation', self._action_generate_validation)
+        # Add model actions
+        self._runtime.register_action('validate_model', self._action_validate_model)
+        self._runtime.register_action('update_prisma_schema', self._action_update_prisma_schema)
+        self._runtime.register_action('generate_repository', self._action_generate_repository)
+        self._runtime.register_action('generate_service', self._action_generate_service)
+        self._runtime.register_action('generate_controller', self._action_generate_controller)
+        self._runtime.register_action('generate_migration', self._action_generate_migration)
 
     async def initialize(
         self,
@@ -161,9 +170,31 @@ class BackendAgent:
             )
 
         # Get generation result from step results
+        generated_files_dict = {}
         for step in plan.steps:
             if step.action == 'generate_code' and step.result:
-                return step.result
+                if isinstance(step.result, dict):
+                    generated_files_dict = step.result
+                    break
+
+        if generated_files_dict:
+            # Convert dict to GeneratedFile objects
+            from core.types import GeneratedFile
+            generated_files = []
+            for path, content in generated_files_dict.items():
+                file_ext = Path(path).suffix.lstrip('.')
+                generated_files.append(GeneratedFile(
+                    path=path,
+                    content=content,
+                    file_type=file_ext or 'txt',
+                    generator='backend_agent'
+                ))
+            
+            return GenerationResult(
+                success=True,
+                files=generated_files,
+                stats={'generated_files': len(generated_files)}
+            )
 
         return GenerationResult(
             success=True,
@@ -406,7 +437,25 @@ class BackendAgent:
         if not api_arch or not service_arch or not auth_plan:
             raise RuntimeError("Missing design artifacts")
 
+        # Map framework to language
+        framework_to_language = {
+            "express": "typescript",
+            "nestjs": "typescript",
+            "fastapi": "python",
+            "flask": "python",
+            "django": "python",
+            "gin": "go",
+            "spring": "java",
+            "dotnet": "csharp"
+        }
+        
+        framework_name = self.config.framework.value if self.config else "express"
+        language_name = framework_to_language.get(framework_name, "typescript")
+
         context = GenerationContext(
+            language=language_name,
+            framework=framework_name,
+            database=self.config.database.value if self.config else "postgresql",
             models=self._architecture.models,
             relations=self._architecture.relations,
             api_resources=self._architecture.api_resources,
@@ -430,8 +479,13 @@ class BackendAgent:
 
         for step in session.current_task.steps:
             if step.action == 'generate_code' and step.result:
-                result: GenerationResult = step.result
-                if result.errors:
+                result = step.result
+                # Check if result is a dict or GenerationResult object
+                if isinstance(result, dict):
+                    # Result is from pipeline.generate() which returns Dict[str, str]
+                    if not result:
+                        return False
+                elif hasattr(result, 'errors') and result.errors:
                     return False
 
         return True
@@ -443,35 +497,41 @@ class BackendAgent:
             return False
 
         # Get generated files
-        generated_files: list[GeneratedFile] = []
+        generated_files_dict: dict[str, str] = {}
         for step in session.current_task.steps:
             if step.action == 'generate_code' and step.result:
-                result: GenerationResult = step.result
-                generated_files = result.files
+                result = step.result
+                if isinstance(result, dict):
+                    # Result is from pipeline.generate() which returns Dict[str, str]
+                    generated_files_dict = result
+                elif hasattr(result, 'files'):
+                    # Result is a GenerationResult object
+                    generated_files_dict = {f.path: f.content for f in result.files}
 
-        if not generated_files:
+        if not generated_files_dict:
             logger.warning("No files to apply")
             return True
 
-        # Convert to file changes
-        changes = [
-            FileChange(
+        # Convert dict to FileChange objects
+        changes = []
+        for path, content in generated_files_dict.items():
+            changes.append(FileChange(
+                path=str(Path(self.config.output_dir) / path),
                 change_type=ChangeType.CREATE,
-                path=f.path,
-                content=f.content,
-                metadata={'generator': f.generator}
-            )
-            for f in generated_files
-        ]
+                content=content
+            ))
 
-        # Stage and apply
-        change_set = await self._change_engine.stage_changes(
-            changes,
-            "Generated backend code"
+        # Create a ChangeSet
+        change_set = ChangeSet(
+            id=generate_id(),
+            description=f"Apply generated backend code ({len(changes)} files)",
+            changes=changes,
+            rollback_changes=[]
         )
 
-        # Apply without strict validation for generated code
-        return await self._change_engine.apply_changes(change_set, validate=False)
+        # Apply all changes
+        success = await self._change_engine.apply_changes(change_set)
+        return success
 
     async def _action_validate_endpoint(self, params: dict) -> bool:
         """Validate endpoint configuration."""
@@ -508,7 +568,8 @@ class BackendAgent:
     async def _action_update_routes(self, params: dict) -> bool:
         """Update routes configuration."""
         endpoint = params.get('endpoint', {})
-        logger.info(f"Updated routes for {endpoint.get('method')} {endpoint.get('path')}")
+        model = params.get('model', {})
+        logger.info(f"Updated routes for {endpoint.get('method', '')} {endpoint.get('path', model.get('name', ''))}")
         # Placeholder - would update route files
         return True
 
@@ -517,6 +578,58 @@ class BackendAgent:
         endpoint = params.get('endpoint', {})
         logger.info(f"Generated validation schema for {endpoint.get('method')} {endpoint.get('path')}")
         # Placeholder - would generate validation schemas
+        return True
+
+    async def _action_validate_model(self, params: dict) -> bool:
+        """Validate model configuration."""
+        model = params.get('model', {})
+        name = model.get('name', '')
+        fields = model.get('fields', [])
+        
+        if not name:
+            logger.error("Model name is required")
+            return False
+        
+        if not fields:
+            logger.error("Model must have at least one field")
+            return False
+        
+        logger.info(f"Validated model: {name} with {len(fields)} fields")
+        return True
+
+    async def _action_update_prisma_schema(self, params: dict) -> bool:
+        """Update Prisma schema with new model."""
+        model = params.get('model', {})
+        logger.info(f"Updated Prisma schema for model: {model.get('name')}")
+        # Placeholder - would update schema.prisma file
+        return True
+
+    async def _action_generate_repository(self, params: dict) -> bool:
+        """Generate repository for model."""
+        model = params.get('model', {})
+        logger.info(f"Generated repository for: {model.get('name')}")
+        # Placeholder - would generate repository class
+        return True
+
+    async def _action_generate_service(self, params: dict) -> bool:
+        """Generate service for model."""
+        model = params.get('model', {})
+        logger.info(f"Generated service for: {model.get('name')}")
+        # Placeholder - would generate service class
+        return True
+
+    async def _action_generate_controller(self, params: dict) -> bool:
+        """Generate controller for model."""
+        model = params.get('model', {})
+        logger.info(f"Generated controller for: {model.get('name')}")
+        # Placeholder - would generate controller class
+        return True
+
+    async def _action_generate_migration(self, params: dict) -> bool:
+        """Generate database migration for model."""
+        model = params.get('model', {})
+        logger.info(f"Generated migration for: {model.get('name')}")
+        # Placeholder - would generate Prisma migration
         return True
 
     # ═══════════════════════════════════════════════════════════════════════

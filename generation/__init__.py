@@ -1,11 +1,16 @@
-"""Code generation module."""
+# generation/__init__.py
+"""
+Generation Module - LLM-based Backend Code Generation
+"""
 
-from generation.pipeline import CodeGenerationPipeline
-from generation.template_engine import TemplateEngine
-from generation.llm_generator import LLMCodeGenerator
+from .pipeline import GenerationPipeline
+from .llm_generator import LLMGenerator
+from .output_parser import OutputParser
+from .prompt_builder import PromptBuilder
 
 __all__ = [
-    "CodeGenerationPipeline",
-    "TemplateEngine",
-    "LLMCodeGenerator",
+    "GenerationPipeline",
+    "LLMGenerator", 
+    "OutputParser",
+    "PromptBuilder"
 ]

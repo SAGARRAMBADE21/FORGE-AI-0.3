@@ -7,11 +7,14 @@ from pathlib import Path
 
 class BackendFramework(str, Enum):
     """Supported backend frameworks."""
-    EXPRESS = "express"
-    FASTAPI = "fastapi"
-    NESTJS = "nestjs"
-    DJANGO = "django"
-    FLASK = "flask"
+    EXPRESS = "express"      # TypeScript/Node.js
+    NESTJS = "nestjs"        # TypeScript/Node.js
+    FASTAPI = "fastapi"      # Python
+    DJANGO = "django"        # Python
+    FLASK = "flask"          # Python
+    GIN = "gin"              # Go
+    SPRING = "spring"        # Java
+    DOTNET = "dotnet"        # C#
 
 
 class DatabaseType(str, Enum):
@@ -61,6 +64,24 @@ class TemplateConfig:
     routes_dir: str = "routes"
     tests_dir: str = "tests"
     config_dir: str = "config"
+    
+    def __post_init__(self):
+        """Auto-detect language from framework if not explicitly set."""
+        # Framework to language mapping
+        framework_language_map = {
+            BackendFramework.EXPRESS: "typescript",
+            BackendFramework.NESTJS: "typescript",
+            BackendFramework.FASTAPI: "python",
+            BackendFramework.DJANGO: "python",
+            BackendFramework.FLASK: "python",
+            BackendFramework.GIN: "go",
+            BackendFramework.SPRING: "java",
+            BackendFramework.DOTNET: "csharp",
+        }
+        
+        # Auto-detect language from framework
+        if self.framework in framework_language_map:
+            self.language = framework_language_map[self.framework]
 
 
 # Default template mappings

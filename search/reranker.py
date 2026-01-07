@@ -22,7 +22,9 @@ class Reranker:
             try:
                 from sentence_transformers import CrossEncoder
                 logger.info(f"Loading reranker: {settings.search.rerank_model}")
-                self._model = CrossEncoder(settings.search.rerank_model)
+                # Force CPU usage to avoid GPU compatibility issues
+                self._model = CrossEncoder(settings.search.rerank_model, device='cpu')
+                logger.info("Reranker loaded on CPU")
             except Exception as e:
                 logger.error(f"Failed to load reranker: {e}")
                 self._model = False  # Mark as failed

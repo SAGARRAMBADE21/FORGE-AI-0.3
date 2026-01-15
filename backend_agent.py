@@ -2,8 +2,9 @@
 
 import logging
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 from datetime import datetime
+from enum import Enum
 
 from core.types import (
     TaskType, TaskStatus, TaskPlan, BackendArchitecture,
@@ -30,8 +31,19 @@ from orchestration.task_planner import TaskPlanner
 from orchestration.execution_runtime import ExecutionRuntime
 from orchestration.checkpoint_manager import CheckpointManager
 from orchestration.session_manager import SessionManager
+from orchestration.agent_coordination import AgentTeamBuilder, WorkflowCoordinator
+
+if TYPE_CHECKING:
+    from orchestration.agent_orchestrator import AgentOrchestrator
 
 logger = logging.getLogger(__name__)
+
+
+class GenerationMode(Enum):
+    """Code generation modes"""
+    SINGLE_AGENT = "single_agent"  # Fast, simple pipeline
+    MULTI_AGENT = "multi_agent"    # Production-quality, collaborative
+    HYBRID = "hybrid"              # Auto-select based on complexity
 
 
 class BackendAgent:
@@ -83,6 +95,12 @@ class BackendAgent:
         self._planner = TaskPlanner()
         self._runtime = ExecutionRuntime(self._checkpoint)
         
+        # Multi-Agent Team (NEW: Production-level backend generation)
+        self._agent_team: 'AgentOrchestrator' | None = None
+        self._workflow_coordinator: WorkflowCoordinator | None = None
+        self._generation_mode = GenerationMode.HYBRID  # Default: auto-select
+        self._use_multi_agent = True  # Backward compatibility flag
+        
         # State
         self._frontend_analysis: FrontendAnalysis | None = None
         self._architecture: BackendArchitecture | None = None
@@ -130,6 +148,14 @@ class BackendAgent:
         self._evidence_collector = EvidenceCollector(indexer)
         self._auth_analyzer = AuthRequirementsAnalyzer(indexer)
         
+        # Initialize multi-agent team
+        if self._use_multi_agent:
+            logger.info("Initializing multi-agent backend engineering team...")
+            self._agent_team = AgentTeamBuilder.build_full_team(self.root)
+            self._workflow_coordinator = WorkflowCoordinator(self._agent_team)
+            if progress:
+                progress("team_initialized", "Backend engineering team assembled")
+        
         # Create or restore session
         await self._session.get_or_create_session(str(self.root))
         
@@ -138,6 +164,54 @@ class BackendAgent:
         if progress:
             progress("initialized", "Backend agent ready")
 
+    def _assess_project_complexity(self) -> str:
+        """Assess project complexity to determine best generation mode"""
+        complexity_score = 0
+        
+        # Check number of models
+        if self._architecture and self._architecture.models:
+            model_count = len(self._architecture.models)
+            if model_count > 10:
+                complexity_score += 3
+            elif model_count > 5:
+                complexity_score += 2
+            elif model_count > 2:
+                complexity_score += 1
+        
+        # Check authentication complexity
+        if self._architecture and self._architecture.auth:
+            auth = self._architecture.auth
+            if hasattr(auth, 'strategies') and len(auth.strategies) > 1:
+                complexity_score += 2
+            if hasattr(auth, 'requires_mfa') and auth.requires_mfa:
+                complexity_score += 2
+        
+        # Check API endpoints
+        if self._architecture and self._architecture.api_resources:
+            endpoint_count = len(self._architecture.api_resources)
+            if endpoint_count > 20:
+                complexity_score += 2
+            elif endpoint_count > 10:
+                complexity_score += 1
+        
+        # Check features from config
+        if self.config:
+            features = getattr(self.config, 'features', [])
+            if 'microservices' in str(features).lower():
+                complexity_score += 3
+            if 'payment' in str(features).lower() or 'billing' in str(features).lower():
+                complexity_score += 2
+            if 'real-time' in str(features).lower() or 'websocket' in str(features).lower():
+                complexity_score += 2
+        
+        # Determine complexity level
+        if complexity_score >= 8:
+            return "high"  # Production-critical, complex system
+        elif complexity_score >= 4:
+            return "medium"  # Moderate complexity
+        else:
+            return "low"  # Simple application
+    
     async def generate_backend(
         self,
         progress: Callable[[str, str], None] | None = None
@@ -146,6 +220,35 @@ class BackendAgent:
         if not self._initialized:
             raise RuntimeError("Agent not initialized")
 
+        # Determine which mode to use
+        use_multi_agent = False
+        
+        if self._generation_mode == GenerationMode.MULTI_AGENT:
+            use_multi_agent = True
+            if progress:
+                progress("mode_selection", "Using multi-agent mode (production-quality)")
+        
+        elif self._generation_mode == GenerationMode.SINGLE_AGENT:
+            use_multi_agent = False
+            if progress:
+                progress("mode_selection", "Using single-agent mode (fast generation)")
+        
+        elif self._generation_mode == GenerationMode.HYBRID:
+            # Intelligent mode selection
+            complexity = self._assess_project_complexity()
+            use_multi_agent = (complexity in ["medium", "high"])
+            
+            if progress:
+                mode_name = "multi-agent" if use_multi_agent else "single-agent"
+                progress("mode_selection", f"Auto-selected {mode_name} mode (complexity: {complexity})")
+            
+            logger.info(f"Hybrid mode: Project complexity={complexity}, using {'multi-agent' if use_multi_agent else 'single-agent'}")
+        
+        # Use selected mode
+        if use_multi_agent and self._agent_team:
+            return await self._generate_backend_multi_agent(progress)
+
+        # Fallback to original single-agent approach
         # Create execution plan
         plan = await self._planner.create_plan(
             TaskType.GENERATE_BACKEND,
@@ -657,3 +760,176 @@ class BackendAgent:
     def get_history(self) -> list[dict]:
         """Get session history."""
         return self._session.get_history()
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # MULTI-AGENT BACKEND GENERATION (NEW)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    async def _generate_backend_multi_agent(
+        self,
+        progress: Callable[[str, str], None] | None = None
+    ) -> GenerationResult:
+        """
+        Generate backend using multi-agent team collaboration.
+        
+        This method orchestrates a team of specialized agents:
+        - Architect: Designs overall system
+        - Database Engineer: Creates schema and models
+        - API Engineer: Designs and implements endpoints
+        - Service Engineer: Implements business logic
+        - Auth Engineer: Adds authentication/authorization
+        - Testing Engineer: Generates comprehensive tests
+        - DevOps Engineer: Adds deployment configs
+        - Code Reviewer: Ensures quality and optimizes
+        
+        Returns:
+            GenerationResult with all generated files
+        """
+        logger.info("Starting multi-agent backend generation...")
+        
+        if not self._agent_team:
+            logger.error("Multi-agent team not initialized")
+            return GenerationResult(
+                success=False,
+                errors=["Multi-agent team not initialized"],
+                files=[]
+            )
+        
+        # Prepare context for agents
+        from generation.pipeline import GenerationContext
+        
+        context = GenerationContext(
+            project_name=self.root.name,
+            language="typescript",  # or from config
+            framework=self.config.framework.value if self.config else "express",
+            database="postgresql",  # or from config
+            architecture="layered",
+            features=["crud", "auth", "validation", "testing"],
+            models=self._architecture.models if self._architecture else [],
+            relations=self._architecture.relations if self._architecture else [],
+            api_resources=self._architecture.api_resources if self._architecture else [],
+            auth_requirements=self._architecture.auth if self._architecture else None,
+            config=self.config
+        )
+        
+        try:
+            # Execute multi-agent workflow
+            if progress:
+                progress("multi_agent", "Backend engineering team collaborating...")
+            
+            result = await self._agent_team.execute_workflow(
+                context=context,
+                progress_callback=progress
+            )
+            
+            # Extract generated files from agent results
+            generated_files = []
+            
+            # Database files
+            if result.get('database', {}).get('files'):
+                for file_path, content in result['database']['files'].items():
+                    generated_files.append(GeneratedFile(
+                        path=f"src/models/{file_path}",
+                        content=str(content),
+                        file_type='ts',
+                        generator='database_engineer'
+                    ))
+            
+            # API files
+            if result.get('api', {}).get('files'):
+                for file_path, content in result['api']['files'].items():
+                    generated_files.append(GeneratedFile(
+                        path=f"src/api/{file_path}",
+                        content=str(content),
+                        file_type='ts',
+                        generator='api_engineer'
+                    ))
+            
+            # Service files
+            if result.get('services', {}).get('files'):
+                for file_path, content in result['services']['files'].items():
+                    generated_files.append(GeneratedFile(
+                        path=f"src/services/{file_path}",
+                        content=str(content),
+                        file_type='ts',
+                        generator='service_engineer'
+                    ))
+            
+            # Auth files
+            if result.get('auth', {}).get('files'):
+                for file_path, content in result['auth']['files'].items():
+                    generated_files.append(GeneratedFile(
+                        path=f"src/auth/{file_path}",
+                        content=str(content),
+                        file_type='ts',
+                        generator='auth_engineer'
+                    ))
+            
+            # Test files
+            if result.get('tests', {}).get('files'):
+                for file_path, content in result['tests']['files'].items():
+                    generated_files.append(GeneratedFile(
+                        path=f"tests/{file_path}",
+                        content=str(content),
+                        file_type='ts',
+                        generator='testing_engineer'
+                    ))
+            
+            # DevOps files
+            if result.get('devops', {}).get('files'):
+                for file_path, content in result['devops']['files'].items():
+                    generated_files.append(GeneratedFile(
+                        path=file_path,
+                        content=str(content),
+                        file_type='yml',
+                        generator='devops_engineer'
+                    ))
+            
+            # Get collaboration summary
+            collaboration_summary = self._agent_team.get_agent_collaboration_summary()
+            
+            logger.info(f"Multi-agent generation complete: {len(generated_files)} files")
+            logger.info(f"Agent collaboration: {collaboration_summary}")
+            
+            return GenerationResult(
+                success=True,
+                files=generated_files,
+                stats={
+                    'generated_files': len(generated_files),
+                    'multi_agent': True,
+                    'agent_messages': collaboration_summary['total_messages'],
+                    'agents_active': collaboration_summary['agents_active'],
+                    'architecture': result.get('architecture'),
+                    'review_status': result.get('review', {}).get('approved', False)
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Multi-agent generation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            return GenerationResult(
+                success=False,
+                errors=[f"Multi-agent generation failed: {str(e)}"],
+                files=[]
+            )
+    
+    def set_generation_mode(self, mode: GenerationMode):
+        """Set code generation mode"""
+        self._generation_mode = mode
+        # Update legacy flag for backward compatibility
+        self._use_multi_agent = (mode == GenerationMode.MULTI_AGENT or mode == GenerationMode.HYBRID)
+        logger.info(f"Generation mode set to: {mode.value}")
+    
+    def enable_multi_agent(self, enabled: bool = True):
+        """Enable or disable multi-agent architecture (legacy method)"""
+        self._generation_mode = GenerationMode.MULTI_AGENT if enabled else GenerationMode.SINGLE_AGENT
+        self._use_multi_agent = enabled
+        logger.info(f"Multi-agent architecture: {'enabled' if enabled else 'disabled'}")
+    
+    def get_agent_collaboration_report(self) -> str:
+        """Get a detailed report of agent collaboration"""
+        if self._workflow_coordinator:
+            return self._workflow_coordinator.get_collaboration_report()
+        return "Multi-agent mode not active"

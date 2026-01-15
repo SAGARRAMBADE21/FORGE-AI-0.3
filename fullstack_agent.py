@@ -52,9 +52,17 @@ class FullStackAgent:
 
     async def initialize(
         self,
-        progress: Callable[[str, str], None] | None = None
+        progress: Callable[[str, str], None] | None = None,
+        force_reindex: bool = False
     ) -> IndexStats:
         """Initialize the full-stack agent."""
+        # Skip if already initialized and not forcing reindex
+        if self._initialized and not force_reindex:
+            if progress:
+                progress("ready", "Using existing index")
+            # Return cached stats
+            return self._code_agent.indexer.get_stats()
+        
         # Initialize code agent (indexer)
         if progress:
             progress("indexing", "Initializing code indexer...")
@@ -80,6 +88,11 @@ class FullStackAgent:
     @property
     def is_initialized(self) -> bool:
         return self._initialized
+
+    @property
+    def backend_agent(self) -> BackendAgent:
+        """Expose the backend agent for external access."""
+        return self._backend_agent
 
     # ═══════════════════════════════════════════════════════════════════════
     # CODE INDEXING & SEARCH

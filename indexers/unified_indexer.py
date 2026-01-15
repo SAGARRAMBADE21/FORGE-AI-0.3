@@ -50,7 +50,7 @@ class UnifiedIndexer:
         
         # Discover files
         files = list(self._discover_files())
-        self._stats.files = len(files)
+        self._stats.total_files = len(files)
         
         if progress:
             progress("discovery", f"Found {len(files)} files")
@@ -73,8 +73,7 @@ class UnifiedIndexer:
                 errors.extend(file_errors)
         
         self._stats.parse_time_ms = (time.time() - parse_start) * 1000
-        self._stats.errors = len(errors)
-        self._stats.symbols = len(self.symbol_table)
+        self._stats.total_symbols = len(self.symbol_table)
         
         # Build dependency graph
         if progress:
@@ -86,11 +85,11 @@ class UnifiedIndexer:
         
         # Calculate stats
         self._calculate_stats()
-        self._stats.total_time_ms = (time.time() - start) * 1000
+        self._stats.index_time_ms = (time.time() - start) * 1000
         
         logger.info(
-            f"Indexed {self._stats.files} files, {self._stats.symbols} symbols "
-            f"in {self._stats.total_time_ms:.0f}ms"
+            f"Indexed {self._stats.total_files} files, {self._stats.total_symbols} symbols "
+            f"in {self._stats.index_time_ms:.0f}ms"
         )
         
         return self._stats
@@ -223,16 +222,9 @@ class UnifiedIndexer:
 
     def _calculate_stats(self):
         """Calculate index statistics."""
-        self._stats.by_language = {}
-        self._stats.by_kind = {}
-        
         for info in self.file_index.all_files():
             lang = info.language.value
-            self._stats.by_language[lang] = self._stats.by_language.get(lang, 0) + 1
-        
-        for symbol in self.symbol_table:
-            kind = symbol.kind.value
-            self._stats.by_kind[kind] = self._stats.by_kind.get(kind, 0) + 1
+            self._stats.languages[lang] = self._stats.languages.get(lang, 0) + 1
 
     def clear(self):
         """Clear all index data."""

@@ -162,6 +162,64 @@ class ChromaDBBackend:
         except Exception:
             return 0
 
+    async def get_all_chunks(self) -> list[Chunk]:
+        """Get all chunks from ChromaDB."""
+        try:
+            # Get all chunks in batches
+            all_chunks = []
+            batch_size = 1000
+            offset = 0
+            
+            while True:
+                result = self._collection.get(
+                    limit=batch_size,
+                    offset=offset,
+                    include=["documents", "metadatas", "embeddings"]
+                )
+                
+                if not result or "ids" not in result or len(result["ids"]) == 0:
+                    break
+                    
+                for i, chunk_id in enumerate(result["ids"]):
+                    try:
+                        meta = result["metadatas"][i] if i < len(result["metadatas"]) else {}
+                        doc = result["documents"][i] if i < len(result["documents"]) else ""
+                        emb_list = result["embeddings"][i] if result.get("embeddings") and i < len(result["embeddings"]) else None
+                        
+                        chunk = Chunk(
+                            id=chunk_id,
+                            content=doc,
+                            chunk_type=meta.get("chunk_type", "code"),
+                            file=meta.get("file", ""),
+                            start_line=meta.get("start_line", 0),
+                            end_line=meta.get("end_line", 0),
+                            language=meta.get("language", "unknown"),
+                            tokens=meta.get("tokens", 0),
+                            embedding=np.array(emb_list, dtype=np.float32) if emb_list is not None and len(emb_list) > 0 else None,
+                            metadata={
+                                "symbol_id": meta.get("symbol_id", ""),
+                                "symbol_name": meta.get("symbol_name", ""),
+                                "symbol_kind": meta.get("symbol_kind", ""),
+                                "parent_context": meta.get("parent_context", ""),
+                                "keywords": meta.get("keywords", "").split(",") if meta.get("keywords") else []
+                            }
+                        )
+                        all_chunks.append(chunk)
+                    except Exception as e:
+                        logger.debug(f"Error processing chunk {chunk_id}: {e}")
+                        continue
+                
+                if len(result["ids"]) < batch_size:
+                    break
+                    
+                offset += batch_size
+            
+            logger.info(f"Loaded {len(all_chunks)} chunks from ChromaDB")
+            return all_chunks
+        except Exception as e:
+            logger.error(f"Error loading chunks: {e}", exc_info=True)
+            return []
+
     def get_chunk(self, chunk_id: str) -> Chunk | None:
         try:
             result = self._collection.get(ids=[chunk_id], include=["documents", "metadatas"])

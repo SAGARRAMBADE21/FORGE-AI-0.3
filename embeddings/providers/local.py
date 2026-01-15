@@ -45,14 +45,11 @@ class LocalEmbedder:
                     compute_capability = device_capability[0] * 10 + device_capability[1]
                     gpu_name = torch.cuda.get_device_name(0)
                     
-                    # RTX 50-series (Blackwell) has sm_120, not yet supported by PyTorch
+                    # RTX 50-series (Blackwell) has sm_120 - supported in PyTorch 2.9+
                     if compute_capability >= 120:
                         logger.info(f"GPU detected: {gpu_name} (sm_{compute_capability})")
-                        logger.warning(
-                            f"RTX 50-series GPUs (sm_{compute_capability}) not yet supported by PyTorch. "
-                            f"Using CPU mode. Check pytorch.org for updates."
-                        )
-                        return "cpu"
+                        logger.info(f"RTX 50-series Blackwell GPU detected - using CUDA acceleration")
+                        return "cuda"
                     elif compute_capability > 90:
                         logger.info(f"GPU detected: {gpu_name} (sm_{compute_capability})")
                         logger.warning(

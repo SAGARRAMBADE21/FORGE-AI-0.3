@@ -69,6 +69,14 @@ class VectorStore:
     def count(self) -> int:
         return self._backend.count() if self._backend else 0
 
+    async def get_all_chunks(self) -> list[Chunk]:
+        """Get all chunks from the vector store."""
+        if not self._initialized:
+            await self.initialize()
+        if self._backend and hasattr(self._backend, 'get_all_chunks'):
+            return await self._backend.get_all_chunks()
+        return []
+
     def get_chunk(self, chunk_id: str) -> Chunk | None:
         if self._backend and hasattr(self._backend, 'get_chunk'):
             return self._backend.get_chunk(chunk_id)

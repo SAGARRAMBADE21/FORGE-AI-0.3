@@ -114,7 +114,7 @@ class EmbeddingConfig:
     openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     voyage_model: str = "voyage-code-2"
     voyage_api_key: str = field(default_factory=lambda: os.getenv("VOYAGE_API_KEY", ""))
-    local_model: str = "microsoft/graphcodebert-base"
+    local_model: str = "all-MiniLM-L6-v2"
     batch_size: int = 100
     cache_enabled: bool = True
     cache_dir: Path = field(default_factory=lambda: Path.home() / ".code_indexer" / "cache")
@@ -156,6 +156,29 @@ class RealtimeConfig:
 
 
 @dataclass
+class LLMConfig:
+    """Configuration for LLM-based code generation"""
+    # Backend generation (optimized for code generation)
+    backend_provider: str = "openrouter"
+    backend_model: str = "meta-llama/llama-3.3-70b-instruct"
+    backend_max_tokens: int = 8192
+    backend_temperature: float = 0.1
+    
+    # Frontend generation (if different)
+    frontend_provider: str = "openrouter"
+    frontend_model: str = "meta-llama/llama-3.3-70b-instruct"
+    frontend_max_tokens: int = 4096
+    frontend_temperature: float = 0.1
+    
+    # API keys from environment
+    openrouter_api_key: str = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
+    openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
+    anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
+    huggingface_api_key: str = field(default_factory=lambda: os.getenv("HUGGINGFACE_API_KEY", ""))
+    groq_api_key: str = field(default_factory=lambda: os.getenv("GROQ_API_KEY", ""))
+
+
+@dataclass
 class Settings:
     parser: ParserConfig = field(default_factory=ParserConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
@@ -163,6 +186,7 @@ class Settings:
     vectorstore: VectorStoreConfig = field(default_factory=VectorStoreConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
     realtime: RealtimeConfig = field(default_factory=RealtimeConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
     debug: bool = False
 
 

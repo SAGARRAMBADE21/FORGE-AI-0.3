@@ -10,6 +10,7 @@ from enum import Enum
 from .llm_generator import LLMGenerator
 from .output_parser import OutputParser
 from .prompt_builder import PromptBuilder
+from config.settings import settings
 
 
 class GenerationStage(Enum):
@@ -63,16 +64,34 @@ class GenerationPipeline:
     Main pipeline that orchestrates backend generation using LLM
     """
     
-    def __init__(self, config_or_provider = "openrouter", model: str = "meta-llama/llama-3.3-70b-instruct"):
+    def __init__(self, config_or_provider = None, model: str = None):
         # Handle both TemplateConfig and string provider
         if hasattr(config_or_provider, 'framework'):
-            # It's a TemplateConfig object
+            # It's a TemplateConfig
             self.config = config_or_provider
-            self.llm = LLMGenerator(provider="openrouter", model="meta-llama/llama-3.3-70b-instruct")
-        else:
-            # It's a provider string
+            # Use backend-specific model from settings for backend generation
+            self.llm = LLMGenerator(
+                provider=settings.llm.backend_provider,
+                model=settings.llm.backend_model
+            )
+            self.llm.config.max_tokens = settings.llm.backend_max_tokens
+            self.llm.config.temperature = settings.llm.backend_temperature
+        elif config_or_provider is not None:
+            # It's a provider string (legacy support)
             self.config = None
-            self.llm = LLMGenerator(provider=config_or_provider, model=model)
+            self.llm = LLMGenerator(
+                provider=config_or_provider,
+                model=model or settings.llm.backend_model
+            )
+        else:
+            # Use default backend settings
+            self.config = None
+            self.llm = LLMGenerator(
+                provider=settings.llm.backend_provider,
+                model=settings.llm.backend_model
+            )
+            self.llm.config.max_tokens = settings.llm.backend_max_tokens
+            self.llm.config.temperature = settings.llm.backend_temperature
         
         self.parser = OutputParser()
         self.prompt_builder = PromptBuilder()

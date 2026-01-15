@@ -1,0 +1,14 @@
+[
+  {
+    "name": "userId",
+    "type": "string"
+  },
+  {
+    "name": "items",
+    "type": "array"
+  },
+  {
+    "name": "total",
+    "type": "number"
+  }
+]

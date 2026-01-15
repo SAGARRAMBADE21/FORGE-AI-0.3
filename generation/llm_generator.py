@@ -21,14 +21,23 @@ class LLMGenerator:
     Handles LLM API calls for code generation
     """
     
-    def __init__(self, provider: str = "anthropic", model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, provider: str = "openrouter", model: str = "meta-llama/llama-3.3-70b-instruct"):
         self.config = LLMConfig(provider=provider, model=model)
         self._client = None
         
     def _get_client(self):
         """Lazy load LLM client"""
         if self._client is None:
-            if self.config.provider == "anthropic":
+            if self.config.provider == "huggingface":
+                try:
+                    from huggingface_hub import InferenceClient
+                    self._client = InferenceClient(
+                        model=self.config.model,
+                        token=os.getenv("HUGGINGFACE_API_KEY") or os.getenv("HF_TOKEN")
+                    )
+                except ImportError:
+                    raise ImportError("pip install huggingface_hub")
+            elif self.config.provider == "anthropic":
                 try:
                     import anthropic
                     self._client = anthropic.Anthropic(
@@ -74,7 +83,20 @@ class LLMGenerator:
         """
         client = self._get_client()
         
-        if self.config.provider == "anthropic":
+        if self.config.provider == "huggingface":
+            # Use Hugging Face Inference API
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            response = client.chat_completion(
+                messages=messages,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature
+            )
+            return response.choices[0].message.content
+        
+        elif self.config.provider == "anthropic":
             response = client.messages.create(
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
@@ -111,7 +133,23 @@ class LLMGenerator:
         """
         client = self._get_client()
         
-        if self.config.provider == "anthropic":
+        if self.config.provider == "huggingface":
+            # Hugging Face streaming
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            stream = client.chat_completion(
+                messages=messages,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        
+        elif self.config.provider == "anthropic":
             with client.messages.stream(
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
@@ -124,7 +162,7 @@ class LLMGenerator:
                 for text in stream.text_stream:
                     yield text
                     
-        elif self.config.provider == "openai":
+        elif self.config.provider == "openai" or self.config.provider == "openrouter":
             stream = client.chat.completions.create(
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,

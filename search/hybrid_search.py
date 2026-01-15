@@ -24,6 +24,9 @@ class HybridSearch:
         # Keyword index
         self._keyword_index: dict[str, set[str]] = defaultdict(set)
         self._chunks: dict[str, Chunk] = {}
+        
+        # Vectorstore reference for cached searches
+        self.vectorstore = None
 
     def index_chunks(self, chunks: list[Chunk]):
         """Build keyword index for BM25-style search."""

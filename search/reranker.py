@@ -16,15 +16,27 @@ class Reranker:
     def __init__(self):
         self._model = None
         self._executor = ThreadPoolExecutor(max_workers=2)
+        self._device = self._get_device()
+
+    def _get_device(self) -> str:
+        """Detect best available device for reranking."""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return "cuda"
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                return "mps"
+            return "cpu"
+        except ImportError:
+            return "cpu"
 
     def _load_model(self):
         if self._model is None:
             try:
                 from sentence_transformers import CrossEncoder
                 logger.info(f"Loading reranker: {settings.search.rerank_model}")
-                # Force CPU usage to avoid GPU compatibility issues
-                self._model = CrossEncoder(settings.search.rerank_model, device='cpu')
-                logger.info("Reranker loaded on CPU")
+                self._model = CrossEncoder(settings.search.rerank_model, device=self._device)
+                logger.info(f"Reranker loaded on {self._device.upper()}")
             except Exception as e:
                 logger.error(f"Failed to load reranker: {e}")
                 self._model = False  # Mark as failed

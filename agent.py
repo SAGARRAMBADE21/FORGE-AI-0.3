@@ -93,22 +93,53 @@ class CodeAgent:
 
     async def initialize(
         self,
-        progress: Callable[[str, str], None] | None = None
+        progress: Callable[[str, str], None] | None = None,
+        force_reindex: bool = False
     ) -> IndexStats:
         """Initialize the agent."""
         start = time.time()
 
-        # 1. Index files
+        # Initialize vector store first to check if index exists
+        if progress:
+            progress("vectorstore", "Initializing vector store...")
+        await self._vectorstore.initialize()
+
+        # Check if we can load existing index
+        existing_chunks = self._vectorstore.count()
+        if existing_chunks > 0 and not force_reindex:
+            if progress:
+                progress("loading", f"Loading cached index ({existing_chunks} chunks)...")
+            
+            # Quick index for navigation only
+            stats = await self._indexer.index_project(progress)
+            
+            # Initialize search with vectorstore (no need to load all chunks)
+            self._search = HybridSearch()
+            self._search.vectorstore = self._vectorstore
+            
+            # Initialize components without re-chunking/embedding
+            self._def_resolver = DefinitionResolver(self._indexer)
+            self._ref_finder = ReferenceFinder(self._indexer)
+            self._call_hierarchy = CallHierarchyAnalyzer(self._indexer)
+            self._hover = HoverProvider(self._indexer)
+            self._context = ContextBuilder(self._indexer)
+            
+            # Update stats with cached chunk count
+            stats.total_chunks = existing_chunks
+            stats.index_time_ms = (time.time() - start) * 1000
+            self._initialized = True
+            
+            if progress:
+                progress("complete", f"Loaded cached index in {stats.index_time_ms:.0f}ms!")
+            
+            logger.info(f"Loaded existing index: {existing_chunks} chunks in {stats.index_time_ms:.0f}ms")
+            return stats
+
+        # Full indexing path
         if progress:
             progress("indexing", "Indexing source files...")
         
         stats = await self._indexer.index_project(progress)
-
-        # 2. Initialize vector store
-        if progress:
-            progress("vectorstore", "Initializing vector store...")
-        
-        await self._vectorstore.initialize()
 
         # 3. Create chunks
         if progress:
@@ -116,8 +147,7 @@ class CodeAgent:
         
         chunk_start = time.time()
         self._chunks = await self._create_chunks()
-        stats.chunks = len(self._chunks)
-        stats.tokens = sum(c.tokens for c in self._chunks)
+        stats.total_chunks = len(self._chunks)
         stats.chunk_time_ms = (time.time() - chunk_start) * 1000
 
         # 4. Embed chunks
@@ -142,15 +172,15 @@ class CodeAgent:
         # 7. Initialize context builder
         self._context = ContextBuilder(self._indexer)
 
-        stats.total_time_ms = (time.time() - start) * 1000
+        stats.index_time_ms = (time.time() - start) * 1000
         self._initialized = True
 
         if progress:
             progress("complete", "Initialization complete!")
 
         logger.info(
-            f"Initialized in {stats.total_time_ms:.0f}ms: "
-            f"{stats.files} files, {stats.symbols} symbols, {stats.chunks} chunks"
+            f"Initialized in {stats.index_time_ms:.0f}ms: "
+            f"{stats.total_files} files, {stats.total_symbols} symbols, {stats.total_chunks} chunks"
         )
 
         return stats

@@ -36,8 +36,22 @@ class PromptBuilder:
         features: Optional[list] = None
     ) -> str:
         """
-        Build system prompt for a generation stage
+        Builds the complete system prompt by composing:
+        - global system identity
+        - architecture, language, and framework constraints
+        - stage-specific generation rules
+        - engineering principles
+        - output format contract
+        
         """
+        # Validate required inputs before building the system prompt
+        if not stage:
+            raise ValueError("stage must be provided for system prompt generation")
+
+        # Validate optional features input
+        if features is not None and not isinstance(features, list):
+            raise TypeError("features must be a list if provided")
+        
         prompts = [MASTER_PROMPT]
         
         # Add architecture prompt
@@ -125,22 +139,34 @@ Output using the specified file format.
         prompts.append(OUTPUT_FORMAT_PROMPT)
         
         return "\n\n".join(filter(None, prompts))
-    
-    def _get_relevant_prompt(
+        
+          def _get_relevant_prompt(
         self,
         prompt_dict: Dict[str, str],
         features: Optional[list]
     ) -> str:
-        """Get relevant prompts based on features"""
+        """
+        Selects and composes relevant prompts based on requested features.
+        Falls back to a deterministic default when no feature match is found.
+        """
         if not features:
-            return list(prompt_dict.values())[0] if prompt_dict else ""
+            # Deterministic fallback to the first prompt
+            return prompt_dict[sorted(prompt_dict.keys())[0]] if prompt_dict else ""
+
+        prompts = []
+        for feature in features:
+            if feature in prompt_dict:
+                prompts.append(prompt_dict[feature])
+
+        return "\n\n".join(prompts) if prompts else prompt_dict[sorted(prompt_dict.keys())[0]]
+
             
         prompts = []
         for feature in features:
             if feature in prompt_dict:
                 prompts.append(prompt_dict[feature])
                 
-        return "\n\n".join(prompts) if prompts else list(prompt_dict.values())[0]
+        prompt_dict[sorted(prompt_dict.keys())[0]]
     
     def _format_spec(self, spec: Dict[str, Any]) -> str:
         """Format specification for prompt"""

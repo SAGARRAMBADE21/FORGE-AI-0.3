@@ -1,9 +1,9 @@
 """Track file changes and determine what needs re-indexing."""
 
 import logging
-from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 from core.utils import compute_hash
 
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FileState:
     """State of a tracked file."""
+
     path: str
     hash: str
     size: int
@@ -30,10 +31,7 @@ class ChangeTracker:
         """Track a file's state."""
         file_hash = compute_hash(content)
         self._states[path] = FileState(
-            path=path,
-            hash=file_hash,
-            size=len(content),
-            modified=datetime.utcnow()
+            path=path, hash=file_hash, size=len(content), modified=datetime.utcnow()
         )
 
     def has_changed(self, path: str, content: str) -> bool:

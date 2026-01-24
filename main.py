@@ -2,9 +2,10 @@
 
 import asyncio
 import json
-from pathlib import Path
 import logging
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -12,56 +13,61 @@ load_dotenv()
 
 import typer
 from rich.console import Console
-from rich.table import Table
+from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.syntax import Syntax
-from rich.panel import Panel
-from rich.markdown import Markdown
+from rich.table import Table
 from rich.tree import Tree
 
 from agent import CodeAgent
 from backend_agent import BackendAgent, GenerationMode
+from cli.ui import (
+    create_gradient_banner,
+    print_tips,
+    get_user_prompt,
+    print_agent_thinking,
+    print_agent_response,
+    print_tool_call,
+    print_tool_inline,
+    print_session_summary,
+    print_status_bar,
+    print_chat_welcome,
+    highlight_file_refs,
+    print_context_info,
+    SessionTracker,
+    COLORS,
+)
+from config.templates_config import BackendFramework, DatabaseType, TemplateConfig
+from execution.agentic_loop import AgenticLoop
 from fullstack_agent import FullStackAgent
-from config.templates_config import TemplateConfig, BackendFramework, DatabaseType
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-# ASCII Art Banner
-BANNER = """
-[bold cyan]
-   ███████╗ ██████╗ ██████╗  ██████╗ ███████╗
-   ██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝
-   █████╗  ██║   ██║██████╔╝██║  ███╗█████╗  
-   ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝  
-   ██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗
-   ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-[/]
-[dim]   AI-Powered Full-Stack Code Generation System[/]
-"""
 
 def show_banner():
     """Display the FORGE banner."""
-    console.print(BANNER)
-    console.print()
+    create_gradient_banner(console)
+
 
 app = typer.Typer(
     name="forge",
     help="🚀 FORGE - AI-Powered Full-Stack Code Generation System",
     add_completion=False,
     rich_markup_mode="rich",
-    pretty_exceptions_show_locals=False
+    pretty_exceptions_show_locals=False,
 )
 console = Console()
 
 # Sub-commands
 index_app = typer.Typer(
     help="📁 [cyan]Code indexing[/] - Semantic search and navigation",
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
 )
 backend_app = typer.Typer(
     help="⚙️ [cyan]Backend generation[/] - Generate, review, and debug backend code",
-    rich_markup_mode="rich"
+    rich_markup_mode="rich",
 )
 app.add_typer(index_app, name="index")
 app.add_typer(backend_app, name="backend")
@@ -74,10 +80,11 @@ _agent_cache = {}
 # INDEX COMMANDS
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @index_app.command("run")
 def index_run(
     path: Path = typer.Argument(..., help="Project path to index"),
-    watch: bool = typer.Option(False, "--watch", "-w", help="Watch for changes")
+    watch: bool = typer.Option(False, "--watch", "-w", help="Watch for changes"),
 ):
     """Index a project with semantic search capabilities."""
     if not path.exists():
@@ -86,7 +93,9 @@ def index_run(
 
     agent = CodeAgent(path)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
         task = prog.add_task("Initializing...", total=None)
 
         def callback(stage, msg):
@@ -116,7 +125,9 @@ def index_search(
     response = asyncio.run(agent.search(query, top_k=top_k))
 
     console.print(f"\n[bold]Search:[/] {query}")
-    console.print(f"[dim]Found {response.total_count} results in {response.search_time_ms:.0f}ms[/]\n")
+    console.print(
+        f"[dim]Found {response.total_count} results in {response.search_time_ms:.0f}ms[/]\n"
+    )
 
     for i, result in enumerate(response.results, 1):
         chunk = result.chunk
@@ -124,17 +135,19 @@ def index_search(
         if chunk.symbol_name:
             title += f" ([yellow]{chunk.symbol_name}[/])"
 
-        console.print(Panel(
-            Syntax(
-                chunk.content[:500] + ("..." if len(chunk.content) > 500 else ""),
-                chunk.language,
-                theme="monokai",
-                line_numbers=True,
-                start_line=chunk.start_line + 1
-            ),
-            title=title,
-            subtitle=f"Score: {result.score:.3f}"
-        ))
+        console.print(
+            Panel(
+                Syntax(
+                    chunk.content[:500] + ("..." if len(chunk.content) > 500 else ""),
+                    chunk.language,
+                    theme="monokai",
+                    line_numbers=True,
+                    start_line=chunk.start_line + 1,
+                ),
+                title=title,
+                subtitle=f"Score: {result.score:.3f}",
+            )
+        )
 
 
 @index_app.command("symbols")
@@ -142,7 +155,7 @@ def index_symbols(
     path: Path = typer.Argument(..., help="Project path"),
     query: str = typer.Argument("", help="Search query"),
     kind: str = typer.Option(None, "-k", "--kind", help="Filter by kind"),
-    limit: int = typer.Option(20, "-n", "--limit", help="Max results")
+    limit: int = typer.Option(20, "-n", "--limit", help="Max results"),
 ):
     """Search or list symbols."""
     agent = CodeAgent(path)
@@ -162,17 +175,25 @@ def index_symbols(
 # BACKEND COMMANDS
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @backend_app.command("generate")
 def backend_generate(
     path: Path = typer.Argument(..., help="Project path"),
     output: Path = typer.Option(None, "-o", "--output", help="Output directory"),
-    framework: str = typer.Option("express", "-f", "--framework", help="Backend framework"),
-    database: str = typer.Option("postgresql", "-d", "--database", help="Database type"),
-    mode: str = typer.Option("hybrid", "-m", "--mode", help="Generation mode: single, multi, hybrid"),
+    framework: str = typer.Option(
+        "express", "-f", "--framework", help="Backend framework"
+    ),
+    database: str = typer.Option(
+        "postgresql", "-d", "--database", help="Database type"
+    ),
+    mode: str = typer.Option(
+        "hybrid", "-m", "--mode", help="Generation mode: single, multi, hybrid"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without applying"),
+    edit: bool = typer.Option(False, "--edit", "-e", help="Enter edit mode after generation"),
 ):
     """Generate backend from frontend analysis.
-    
+
     Modes:
       single - Fast single-agent mode (1-2 min, good for MVPs)
       multi  - Production multi-agent mode (5-10 min, 8 specialized agents)
@@ -186,15 +207,17 @@ def backend_generate(
     mode_map = {
         "single": GenerationMode.SINGLE_AGENT,
         "multi": GenerationMode.MULTI_AGENT,
-        "hybrid": GenerationMode.HYBRID
+        "hybrid": GenerationMode.HYBRID,
     }
-    
+
     if mode.lower() not in mode_map:
-        console.print(f"[red]Error: Invalid mode '{mode}'. Use: single, multi, or hybrid[/]")
+        console.print(
+            f"[red]Error: Invalid mode '{mode}'. Use: single, multi, or hybrid[/]"
+        )
         raise typer.Exit(1)
-    
+
     generation_mode = mode_map[mode.lower()]
-    
+
     console.print(f"[cyan]Generation mode:[/] {mode.upper()}")
     if mode.lower() == "hybrid":
         console.print("[dim]  Will auto-select based on project complexity[/]")
@@ -207,15 +230,17 @@ def backend_generate(
     config = TemplateConfig(
         framework=BackendFramework(framework),
         database=DatabaseType(database),
-        output_dir=str(output) if output else "backend"
+        output_dir=str(output) if output else "backend",
     )
 
     agent = FullStackAgent(path, config)
-    
+
     # Set generation mode
     agent.backend_agent.set_generation_mode(generation_mode)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
         task = prog.add_task("Initializing...", total=None)
 
         def callback(stage, msg):
@@ -225,20 +250,27 @@ def backend_generate(
 
     if result.success:
         console.print(f"\n[green]✓ Backend generation complete![/]")
-        
+
         # Show mode used
         if generation_mode == GenerationMode.HYBRID:
             complexity = agent.backend_agent._assess_project_complexity()
-            actual_mode = "multi-agent" if complexity in ["medium", "high"] else "single-agent"
-            console.print(f"[dim]Mode used: {actual_mode} (complexity: {complexity})[/]")
-        
+            actual_mode = (
+                "multi-agent" if complexity in ["medium", "high"] else "single-agent"
+            )
+            console.print(
+                f"[dim]Mode used: {actual_mode} (complexity: {complexity})[/]"
+            )
+
         # Show collaboration report for multi-agent
-        if generation_mode == GenerationMode.MULTI_AGENT or (generation_mode == GenerationMode.HYBRID and complexity in ["medium", "high"]):
+        if generation_mode == GenerationMode.MULTI_AGENT or (
+            generation_mode == GenerationMode.HYBRID
+            and complexity in ["medium", "high"]
+        ):
             report = agent.backend_agent.get_agent_collaboration_report()
             if report != "Multi-agent mode not active":
                 console.print(f"\n[cyan]Agent Collaboration:[/]")
                 console.print(f"[dim]{report}[/]")
-        
+
         # Display generated files
         table = Table(title=f"Generated Files ({len(result.files)})")
         table.add_column("Path", style="cyan")
@@ -258,6 +290,33 @@ def backend_generate(
 
         if dry_run:
             console.print("\n[yellow]Dry run - no files were written[/]")
+        else:
+            # Write files to disk
+            output_dir = output if output else path / "backend"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            console.print(f"\n[cyan]Writing files to:[/] {output_dir}")
+            files_written = 0
+            
+            for file_obj in result.files:
+                file_path = output_dir / file_obj.path
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                file_path.write_text(file_obj.content, encoding="utf-8")
+                files_written += 1
+            
+            console.print(f"[green]✓ Wrote {files_written} files to {output_dir}[/]")
+            
+            # Offer edit mode after successful generation
+            enter_edit = edit
+            if not edit:
+                console.print()
+                enter_edit = typer.confirm(
+                    "🔧 Would you like to edit the generated code with prompts?",
+                    default=False
+                )
+            
+            if enter_edit:
+                _enter_post_generation_edit(output_dir, agent, console)
     else:
         console.print(f"\n[red]✗ Generation failed[/]")
         for error in result.errors:
@@ -267,16 +326,20 @@ def backend_generate(
 @backend_app.command("analyze")
 def backend_analyze(
     path: Path = typer.Argument(..., help="Project path"),
-    reindex: bool = typer.Option(False, "--reindex", help="Force re-indexing")
+    reindex: bool = typer.Option(False, "--reindex", help="Force re-indexing"),
 ):
     """Analyze frontend and show inferred backend architecture."""
     agent = FullStackAgent(path)
 
     # Check if already indexed
     codegen_dir = path / ".codegen"
-    index_exists = (codegen_dir / "vectorstore").exists() if codegen_dir.exists() else False
-    
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+    index_exists = (
+        (codegen_dir / "vectorstore").exists() if codegen_dir.exists() else False
+    )
+
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
         if index_exists and not reindex:
             task = prog.add_task("Loading existing index...", total=None)
         else:
@@ -298,8 +361,10 @@ def backend_analyze(
 def backend_add_model(
     path: Path = typer.Argument(..., help="Project path"),
     name: str = typer.Argument(..., help="Model name"),
-    fields: str = typer.Option("", "-f", "--fields", help="Fields as JSON array or path to JSON file"),
-    reindex: bool = typer.Option(False, "--reindex", help="Force re-indexing")
+    fields: str = typer.Option(
+        "", "-f", "--fields", help="Fields as JSON array or path to JSON file"
+    ),
+    reindex: bool = typer.Option(False, "--reindex", help="Force re-indexing"),
 ):
     """Add a new model to the backend."""
     # Use cached agent if available
@@ -309,8 +374,16 @@ def backend_add_model(
         _agent_cache[cache_key] = agent
     else:
         agent = _agent_cache[cache_key]
-    
-    status_msg = "Re-indexing..." if reindex else ("Loading cached index..." if cache_key in _agent_cache else "Initializing...")
+
+    status_msg = (
+        "Re-indexing..."
+        if reindex
+        else (
+            "Loading cached index..."
+            if cache_key in _agent_cache
+            else "Initializing..."
+        )
+    )
     with console.status(status_msg):
         asyncio.run(agent.initialize(force_reindex=reindex))
 
@@ -319,26 +392,37 @@ def backend_add_model(
     if fields:
         try:
             # Check if it's a file path
-            if fields.endswith('.json') and Path(fields).exists():
+            if fields.endswith(".json") and Path(fields).exists():
                 field_list = json.loads(Path(fields).read_text())
             else:
                 # Handle both escaped and unescaped JSON
                 import re
+
                 # Replace single quotes with double quotes if present
                 fields_cleaned = fields.replace("'", '"')
                 field_list = json.loads(fields_cleaned)
-            
+
             # Validate structure
             if not isinstance(field_list, list):
                 raise ValueError("Fields must be a JSON array")
             for field in field_list:
-                if not isinstance(field, dict) or 'name' not in field or 'type' not in field:
-                    raise ValueError("Each field must have 'name' and 'type' properties")
+                if (
+                    not isinstance(field, dict)
+                    or "name" not in field
+                    or "type" not in field
+                ):
+                    raise ValueError(
+                        "Each field must have 'name' and 'type' properties"
+                    )
         except (json.JSONDecodeError, ValueError) as e:
             console.print(f"[red]Invalid fields JSON: {e}[/]")
-            console.print(f"[yellow]Expected format: '[{{\"name\":\"field1\",\"type\":\"string\"}}]'[/]")
+            console.print(
+                f'[yellow]Expected format: \'[{{"name":"field1","type":"string"}}]\'[/]'
+            )
             console.print(f"[yellow]Or provide a path to JSON file: -f fields.json[/]")
-            console.print(f"[yellow]Example: -f '[{{\"name\":\"id\",\"type\":\"string\"}},{{\"name\":\"title\",\"type\":\"string\"}}]'[/]")
+            console.print(
+                f'[yellow]Example: -f \'[{{"name":"id","type":"string"}},{{"name":"title","type":"string"}}]\'[/]'
+            )
             raise typer.Exit(1)
 
     result = asyncio.run(agent.add_model(name, field_list))
@@ -356,7 +440,7 @@ def backend_add_endpoint(
     path: Path = typer.Argument(..., help="Project path"),
     method: str = typer.Argument(..., help="HTTP method"),
     endpoint_path: str = typer.Argument(..., help="Endpoint path"),
-    reindex: bool = typer.Option(False, "--reindex", help="Force re-indexing")
+    reindex: bool = typer.Option(False, "--reindex", help="Force re-indexing"),
 ):
     """Add a new API endpoint."""
     # Use cached agent if available
@@ -366,8 +450,16 @@ def backend_add_endpoint(
         _agent_cache[cache_key] = agent
     else:
         agent = _agent_cache[cache_key]
-    
-    status_msg = "Re-indexing..." if reindex else ("Loading cached index..." if cache_key in _agent_cache else "Initializing...")
+
+    status_msg = (
+        "Re-indexing..."
+        if reindex
+        else (
+            "Loading cached index..."
+            if cache_key in _agent_cache
+            else "Initializing..."
+        )
+    )
     with console.status(status_msg):
         asyncio.run(agent.initialize(force_reindex=reindex))
 
@@ -384,7 +476,9 @@ def backend_sync(path: Path = typer.Argument(..., help="Project path")):
     """Sync backend with frontend changes."""
     agent = FullStackAgent(path)
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
         task = prog.add_task("Syncing...", total=None)
 
         def callback(stage, msg):
@@ -418,11 +512,15 @@ def backend_rollback(path: Path = typer.Argument(..., help="Project path")):
 @backend_app.command("review")
 def backend_review(
     path: Path = typer.Argument(..., help="Backend project path to review"),
-    output: str = typer.Option(None, "-o", "--output", help="Output file for review report"),
-    verbose: bool = typer.Option(False, "-v", "--verbose", help="Show detailed analysis"),
+    output: str = typer.Option(
+        None, "-o", "--output", help="Output file for review report"
+    ),
+    verbose: bool = typer.Option(
+        False, "-v", "--verbose", help="Show detailed analysis"
+    ),
 ):
     """Review existing backend code for quality, security, and best practices.
-    
+
     Analyzes:
       - Code quality and structure
       - Security vulnerabilities (OWASP)
@@ -436,43 +534,46 @@ def backend_review(
 
     console.print(f"[cyan]Reviewing backend code at:[/] {path}\n")
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
         task = prog.add_task("Initializing code review...", total=None)
 
         def callback(stage, msg):
             prog.update(task, description=f"[cyan]{stage}[/]: {msg}")
 
         # Import generator and perform review
-        from generation.llm_generator import LLMGenerator
         from config.settings import settings
-        
+        from generation.llm_generator import LLMGenerator
+
         llm = LLMGenerator(
-            provider=settings.llm.backend_provider,
-            model=settings.llm.backend_model
+            provider=settings.llm.backend_provider, model=settings.llm.backend_model
         )
-        
+
         # Collect backend files
         prog.update(task, description="Scanning backend files...")
         backend_files = []
         code_content = []
-        
-        for ext in ['.py', '.js', '.ts', '.java', '.go', '.rs']:
-            for file in path.rglob(f'*{ext}'):
-                if 'node_modules' not in str(file) and '__pycache__' not in str(file):
+
+        for ext in [".py", ".js", ".ts", ".java", ".go", ".rs"]:
+            for file in path.rglob(f"*{ext}"):
+                if "node_modules" not in str(file) and "__pycache__" not in str(file):
                     backend_files.append(file)
                     try:
-                        content = file.read_text(encoding='utf-8', errors='ignore')
+                        content = file.read_text(encoding="utf-8", errors="ignore")
                         if len(content) < 10000:  # Limit file size
-                            code_content.append(f"### {file.relative_to(path)}\n```\n{content[:3000]}\n```")
+                            code_content.append(
+                                f"### {file.relative_to(path)}\n```\n{content[:3000]}\n```"
+                            )
                     except:
                         pass
-        
+
         if not backend_files:
             console.print(f"[yellow]No backend code files found in {path}[/]")
             raise typer.Exit(1)
-        
+
         prog.update(task, description=f"Analyzing {len(backend_files)} files...")
-        
+
         # Perform LLM review
         system_prompt = """You are an expert code reviewer specializing in backend development.
 Analyze the provided code for:
@@ -500,25 +601,24 @@ Provide a structured review report with:
 6. Files that need attention"""
 
         prog.update(task, description="Generating review report...")
-        
-        review_result = asyncio.run(llm.generate(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt
-        ))
+
+        review_result = asyncio.run(
+            llm.generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        )
 
     # Display results
     console.print("\n" + "═" * 70)
     console.print("[bold cyan]📋 CODE REVIEW REPORT[/]")
     console.print("═" * 70 + "\n")
-    
+
     console.print(Markdown(review_result))
-    
+
     # Save to file if requested
     if output:
         output_path = Path(output)
         output_path.write_text(f"# Code Review Report\n\n{review_result}")
         console.print(f"\n[green]✓ Report saved to {output}[/]")
-    
+
     console.print(f"\n[dim]Reviewed {len(backend_files)} files[/]")
 
 
@@ -528,43 +628,55 @@ def backend_debug(
     error: str = typer.Option(None, "-e", "--error", help="Error message to debug"),
     file: str = typer.Option(None, "-f", "--file", help="Specific file with the issue"),
     line: int = typer.Option(None, "-l", "--line", help="Line number of the issue"),
+    fix: bool = typer.Option(False, "--fix", help="Auto-fix detected issues"),
 ):
     """Debug backend code issues with AI assistance.
-    
+
     Modes:
       - Provide an error message to get fix suggestions
       - Specify a file and line for targeted analysis
       - Run without options for general issue detection
+      - Use --fix to automatically apply fixes
     """
     if not path.exists():
         console.print(f"[red]Error: Path not found: {path}[/]")
         raise typer.Exit(1)
 
-    console.print(f"[cyan]Debugging backend at:[/] {path}\n")
+    console.print(f"[cyan]Debugging backend at:[/] {path}")
+    if fix:
+        console.print(f"[yellow]⚡ Auto-fix mode enabled[/]\n")
+    else:
+        console.print()
 
-    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
         task = prog.add_task("Initializing debugger...", total=None)
 
         def callback(stage, msg):
             prog.update(task, description=f"[cyan]{stage}[/]: {msg}")
 
-        from generation.llm_generator import LLMGenerator
         from config.settings import settings
-        
+        from generation.llm_generator import LLMGenerator
+
         llm = LLMGenerator(
-            provider=settings.llm.backend_provider,
-            model=settings.llm.backend_model
+            provider=settings.llm.backend_provider, model=settings.llm.backend_model
         )
-        
+
         # Get relevant code context
         code_context = ""
-        
+        target_file_path = None
+        original_content = ""
+
         if file:
             file_path = path / file
             if file_path.exists():
-                content = file_path.read_text(encoding='utf-8', errors='ignore')
+                original_content = file_path.read_text(
+                    encoding="utf-8", errors="ignore"
+                )
+                target_file_path = file_path
                 if line:
-                    lines = content.split('\n')
+                    lines = original_content.split("\n")
                     start = max(0, line - 15)
                     end = min(len(lines), line + 15)
                     code_context = f"File: {file} (around line {line})\n```\n"
@@ -573,31 +685,56 @@ def backend_debug(
                         code_context += f"{marker}{i+1}: {lines[i]}\n"
                     code_context += "```"
                 else:
-                    code_context = f"File: {file}\n```\n{content[:5000]}\n```"
+                    code_context = f"File: {file}\n```\n{original_content[:5000]}\n```"
             else:
                 console.print(f"[red]File not found: {file}[/]")
                 raise typer.Exit(1)
         else:
             # Collect recent/relevant files
             prog.update(task, description="Scanning for potential issues...")
-            for ext in ['.py', '.js', '.ts']:
-                for f in list(path.rglob(f'*{ext}'))[:5]:
-                    if 'node_modules' not in str(f):
+            for ext in [".py", ".js", ".ts"]:
+                for f in list(path.rglob(f"*{ext}"))[:5]:
+                    if "node_modules" not in str(f):
                         try:
-                            content = f.read_text(encoding='utf-8', errors='ignore')
+                            content = f.read_text(encoding="utf-8", errors="ignore")
                             code_context += f"\n### {f.relative_to(path)}\n```\n{content[:2000]}\n```"
                         except:
                             pass
-        
+
         prog.update(task, description="Analyzing code for issues...")
-        
-        if error:
+
+        # If fix mode and we have a specific file, use a different prompt
+        if fix and target_file_path:
+            system_prompt = """You are an expert backend debugger. Analyze the code and provide:
+1. A brief list of issues found
+2. The COMPLETE FIXED FILE content
+
+IMPORTANT: After your analysis, output the complete fixed file wrapped in:
+```fixed
+<complete fixed file content here>
+```
+
+Fix ALL issues you find:
+- Null/undefined handling
+- Error handling gaps
+- Type validation
+- Logic errors
+- Security issues"""
+
+            user_prompt = f"""Analyze and FIX this code:
+
+{code_context}
+
+Provide:
+1. Brief list of issues found (one line each)
+2. The COMPLETE fixed file content in a ```fixed code block"""
+        elif error:
             system_prompt = """You are an expert backend debugger. Given an error message and code context,
 identify the root cause and provide a clear fix. Be specific about:
 1. What caused the error
 2. The exact fix needed (with code)
 3. How to prevent similar issues"""
-            
+
             user_prompt = f"""Error message:
 ```
 {error}
@@ -619,7 +756,7 @@ runtime errors, and logical issues. Look for:
 3. Error handling gaps
 4. Type mismatches
 5. Logic errors"""
-            
+
             user_prompt = f"""Analyze this code for bugs and issues:
 
 {code_context}
@@ -629,30 +766,290 @@ Provide:
 2. Potential Runtime Errors
 3. Logic Problems
 4. Suggested Fixes with code examples"""
-        
+
         prog.update(task, description="Generating debug analysis...")
-        
-        debug_result = asyncio.run(llm.generate(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt
-        ))
+
+        debug_result = asyncio.run(
+            llm.generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        )
+
+        # If fix mode, extract and apply the fixed code
+        fixed_applied = False
+        if fix and target_file_path:
+            prog.update(task, description="Extracting fixed code...")
+
+            # Try to extract fixed code block
+            import re
+
+            fixed_match = re.search(r"```fixed\n(.*?)```", debug_result, re.DOTALL)
+            if not fixed_match:
+                # Try alternative patterns
+                fixed_match = re.search(r"```python\n(.*?)```", debug_result, re.DOTALL)
+
+            if fixed_match:
+                fixed_code = fixed_match.group(1).strip()
+
+                # Create backup
+                backup_path = target_file_path.with_suffix(
+                    target_file_path.suffix + ".backup"
+                )
+                backup_path.write_text(original_content, encoding="utf-8")
+
+                # Apply fix
+                target_file_path.write_text(fixed_code, encoding="utf-8")
+                fixed_applied = True
+                prog.update(task, description="Fix applied!")
 
     # Display results
     console.print("\n" + "═" * 70)
     console.print("[bold cyan]🔍 DEBUG ANALYSIS[/]")
     console.print("═" * 70 + "\n")
-    
+
     if error:
-        console.print(f"[red]Error:[/] {error[:100]}...\n" if len(error) > 100 else f"[red]Error:[/] {error}\n")
-    
+        console.print(
+            f"[red]Error:[/] {error[:100]}...\n"
+            if len(error) > 100
+            else f"[red]Error:[/] {error}\n"
+        )
+
     console.print(Markdown(debug_result))
-    
+
+    if fixed_applied:
+        console.print(f"\n[green]✓ Fix applied to {target_file_path}[/]")
+        console.print(f"[dim]  Backup saved to {backup_path}[/]")
+        console.print(f"\n[yellow]Review the changes and test your code![/]")
+    elif fix and not target_file_path:
+        console.print(f"\n[yellow]⚠ --fix requires a specific file (-f)[/]")
+        console.print(
+            f"[dim]  Example: python main.py backend debug ./backend -f app.py --fix[/]"
+        )
+
     console.print(f"\n[dim]Debug analysis complete[/]")
+
+
+@backend_app.command("fix")
+def backend_fix(
+    path: Path = typer.Argument(..., help="Backend project path"),
+    file: str = typer.Option(
+        None, "-f", "--file", help="Specific file to fix (required)"
+    ),
+):
+    """Auto-fix code issues with AI assistance.
+
+    Scans the code for bugs, security issues, and bad patterns,
+    then automatically applies fixes.
+
+    Example:
+      python main.py backend fix ./backend -f app.py
+    """
+    if not path.exists():
+        console.print(f"[red]Error: Path not found: {path}[/]")
+        raise typer.Exit(1)
+
+    if not file:
+        console.print(f"[red]Error: --file (-f) is required[/]")
+        console.print(
+            f"[dim]Example: python main.py backend fix ./backend -f app.py[/]"
+        )
+        raise typer.Exit(1)
+
+    file_path = path / file
+    if not file_path.exists():
+        console.print(f"[red]Error: File not found: {file_path}[/]")
+        raise typer.Exit(1)
+
+    console.print(f"[cyan]Fixing:[/] {file_path}")
+    console.print(f"[yellow]⚡ Auto-fix mode[/]\n")
+
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
+        task = prog.add_task("Reading file...", total=None)
+
+        from config.settings import settings
+        from generation.llm_generator import LLMGenerator
+
+        llm = LLMGenerator(
+            provider=settings.llm.backend_provider, model=settings.llm.backend_model
+        )
+
+        original_content = file_path.read_text(encoding="utf-8", errors="ignore")
+
+        prog.update(task, description="Analyzing and fixing...")
+
+        system_prompt = """You are an expert code fixer. Analyze the code and:
+1. List issues found (briefly)
+2. Output the COMPLETE FIXED FILE
+
+Output format:
+## Issues Found
+- issue 1
+- issue 2
+
+```fixed
+<complete fixed code>
+```
+
+Fix: null handling, error handling, type validation, logic errors, security issues."""
+
+        user_prompt = f"""Fix this code:
+
+```
+{original_content}
+```
+
+Return the complete fixed file in a ```fixed block."""
+
+        result = asyncio.run(
+            llm.generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        )
+
+        prog.update(task, description="Applying fix...")
+
+        # Extract fixed code
+        import re
+
+        fixed_match = re.search(r"```fixed\n(.*?)```", result, re.DOTALL)
+        if not fixed_match:
+            fixed_match = re.search(r"```python\n(.*?)```", result, re.DOTALL)
+        if not fixed_match:
+            fixed_match = re.search(r"```\n(.*?)```", result, re.DOTALL)
+
+        if fixed_match:
+            fixed_code = fixed_match.group(1).strip()
+
+            # Create backup
+            backup_path = file_path.with_suffix(file_path.suffix + ".backup")
+            backup_path.write_text(original_content, encoding="utf-8")
+
+            # Apply fix
+            file_path.write_text(fixed_code, encoding="utf-8")
+
+            prog.update(task, description="Fix applied!")
+
+    # Show results
+    console.print("\n" + "═" * 50)
+    console.print(Markdown(result))
+    console.print("═" * 50)
+
+    if fixed_match:
+        console.print(f"\n[green]✓ Fixed: {file_path}[/]")
+        console.print(f"[dim]  Backup: {backup_path}[/]")
+    else:
+        console.print(f"\n[yellow]⚠ Could not extract fixed code[/]")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # TOP-LEVEL COMMANDS
 # ═══════════════════════════════════════════════════════════════════════════
+
+
+@app.command()
+def setup():
+    """🔧 Interactive configuration wizard for FORGE setup."""
+    show_banner()
+    from cli.wizard import run_wizard
+
+    run_wizard()
+
+
+@app.command()
+def stats():
+    """📊 Show usage statistics, costs, and cache info."""
+    show_banner()
+
+    # Cost tracking stats
+    try:
+        from generation.cost_tracker import get_tracker
+
+        tracker = get_tracker()
+
+        console.print("[bold cyan]💰 Cost Tracking[/]\n")
+        summary = tracker.get_summary()
+
+        cost_table = Table(show_header=False, box=None)
+        cost_table.add_column("Metric", style="dim", width=25)
+        cost_table.add_column("Value", style="cyan")
+
+        cost_table.add_row("Session Cost", summary["session_cost_usd"])
+        cost_table.add_row("Today's Cost", summary["today_cost_usd"])
+        cost_table.add_row("Lifetime Cost", summary["lifetime_cost_usd"])
+        cost_table.add_row("Total Requests", str(summary["total_requests"]))
+        cost_table.add_row("Cached Requests", str(summary["cached_requests"]))
+        cost_table.add_row("Cache Hit Rate", summary["cache_hit_rate"])
+        cost_table.add_row("Total Input Tokens", f"{summary['total_input_tokens']:,}")
+        cost_table.add_row("Total Output Tokens", f"{summary['total_output_tokens']:,}")
+
+        console.print(cost_table)
+
+        # Usage by model
+        usage = tracker.get_usage_by_model()
+        if usage:
+            console.print("\n[bold]Usage by Model:[/]")
+            for model, stats in list(usage.items())[:5]:
+                console.print(
+                    f"  [cyan]{model}[/]: {stats['requests']} requests, ${stats['cost_usd']:.4f}"
+                )
+    except Exception as e:
+        console.print(f"[dim]Cost tracking not available: {e}[/]")
+
+    # Cache stats
+    try:
+        from generation.cache_manager import get_cache
+
+        cache = get_cache()
+
+        console.print("\n[bold cyan]📦 Response Cache[/]\n")
+        cache_stats = cache.stats()
+
+        cache_table = Table(show_header=False, box=None)
+        cache_table.add_column("Metric", style="dim", width=25)
+        cache_table.add_column("Value", style="cyan")
+
+        cache_table.add_row("Cache Hits", str(cache_stats["hits"]))
+        cache_table.add_row("Cache Misses", str(cache_stats["misses"]))
+        cache_table.add_row("Hit Rate", cache_stats["hit_rate"])
+        cache_table.add_row("Memory Entries", str(cache_stats["memory_entries"]))
+        cache_table.add_row("Disk Size", f"{cache_stats['disk_size_mb']} MB")
+        cache_table.add_row("Enabled", "Yes" if cache_stats["enabled"] else "No")
+
+        console.print(cache_table)
+    except Exception as e:
+        console.print(f"[dim]Cache stats not available: {e}[/]")
+
+    # Optimization stats
+    try:
+        from generation.prompt_optimizer import get_optimizer
+
+        optimizer = get_optimizer()
+        opt_stats = optimizer.get_stats()
+
+        if opt_stats["prompts_optimized"] > 0:
+            console.print("\n[bold cyan]⚡ Prompt Optimization[/]\n")
+            console.print(f"  Prompts Optimized: {opt_stats['prompts_optimized']}")
+            console.print(f"  Characters Saved: {opt_stats['total_chars_saved']:,}")
+            console.print(
+                f"  Average Reduction: {opt_stats['average_reduction_percent']:.1f}%"
+            )
+    except Exception:
+        pass
+
+    console.print()
+
+
+@app.command("help")
+def show_help(
+    section: str = typer.Argument(
+        None,
+        help="Help section: start, commands, providers, frameworks, examples, troubleshoot",
+    )
+):
+    """📚 Show detailed help and documentation."""
+    show_banner()
+    from cli.help import show_help as display_help
+
+    display_help(section)
+
 
 @app.command()
 def init(
@@ -672,11 +1069,7 @@ def init(
         "framework": framework,
         "database": "postgresql",
         "output_dir": "backend",
-        "features": {
-            "docker": True,
-            "testing": True,
-            "swagger": True
-        }
+        "features": {"docker": True, "testing": True, "swagger": True},
     }
 
     (codegen_dir / "config.json").write_text(json.dumps(config, indent=2))
@@ -706,9 +1099,9 @@ def status(path: Path = typer.Argument(".", help="Project path")):
         console.print(f"  Output: {config.get('output_dir')}")
 
     # Check for generated backend
-    backend_dir = path / config.get('output_dir', 'backend')
+    backend_dir = path / config.get("output_dir", "backend")
     if backend_dir.exists():
-        file_count = sum(1 for _ in backend_dir.rglob('*') if _.is_file())
+        file_count = sum(1 for _ in backend_dir.rglob("*") if _.is_file())
         console.print(f"\n[bold]Backend:[/] {file_count} files in {backend_dir}")
     else:
         console.print(f"\n[bold]Backend:[/] Not generated yet")
@@ -716,14 +1109,110 @@ def status(path: Path = typer.Argument(".", help="Project path")):
     # Check sessions
     sessions_dir = codegen_dir / "sessions"
     if sessions_dir.exists():
-        session_count = len(list(sessions_dir.glob('*.json')))
+        session_count = len(list(sessions_dir.glob("*.json")))
         console.print(f"\n[bold]Sessions:[/] {session_count}")
 
     # Check checkpoints
     checkpoints_dir = codegen_dir / "checkpoints"
     if checkpoints_dir.exists():
-        checkpoint_count = len(list(checkpoints_dir.glob('*')))
+        checkpoint_count = len(list(checkpoints_dir.glob("*")))
         console.print(f"[bold]Checkpoints:[/] {checkpoint_count}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AGENTIC EDIT MODE
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@app.command()
+def edit(
+    path: Path = typer.Argument(..., help="Backend project path to edit"),
+):
+    """
+    🔧 Agentic edit mode - edit code with natural language.
+    
+    Enter an interactive loop where you can:
+    - Edit files: "Add rate limiting to API endpoints"
+    - Run commands: "Run npm install express-rate-limit"
+    - Create files: "Create a health check endpoint"
+    - Search code: "Find authentication logic"
+    - Undo changes: "undo"
+    
+    All changes require your approval before execution.
+    """
+    if not path.exists():
+        console.print(f"[red]Error: Path not found: {path}[/]")
+        raise typer.Exit(1)
+    
+    # Display welcome
+    console.print(f"\n[bold cyan]🔧 FORGE Agentic Edit Mode[/]")
+    console.print(f"[dim]Project: {path}[/]\n")
+    
+    console.print("[dim]Commands:[/]")
+    console.print("  • Type natural language requests to edit code")
+    console.print("  • [cyan]undo[/] - Undo last change")
+    console.print("  • [cyan]history[/] - Show action history")
+    console.print("  • [cyan]/exit[/] - Exit edit mode")
+    console.print()
+    
+    # Create session tracker
+    session = SessionTracker()
+    
+    # Initialize agent for context (optional)
+    agent = None
+    try:
+        agent = FullStackAgent(path)
+        with console.status("[dim]Indexing project...[/]"):
+            asyncio.run(agent.initialize())
+        console.print(f"[green]✓[/] Project indexed\n")
+    except Exception as e:
+        console.print(f"[yellow]⚠ Could not initialize agent: {e}[/]")
+        console.print("[dim]Continuing without semantic search...[/]\n")
+    
+    # Create agentic loop
+    loop = AgenticLoop(
+        project_path=path,
+        console=console,
+        agent=agent,
+    )
+    
+    # Main loop
+    while True:
+        try:
+            # Get user input
+            request = console.input(f"[{COLORS['prompt_gray']}]>[/] ").strip()
+            
+            if not request:
+                continue
+            
+            # Handle exit
+            if request.lower() in ("/exit", "/quit", "/q", "exit", "quit"):
+                break
+            
+            # Process request
+            with console.status("[dim]Thinking...[/]"):
+                response = asyncio.run(loop.process(request))
+            
+            # Display response
+            if response.message:
+                print_agent_response(console, response.message)
+            
+            # Track for session summary
+            for action in response.actions:
+                success = action.status.value == "executed"
+                session.record_tool_call(success=success)
+            
+        except KeyboardInterrupt:
+            console.print("\n[dim]Use /exit to quit[/]")
+            continue
+        except EOFError:
+            break
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/]")
+            logger.exception("Edit mode error")
+    
+    # Show session summary
+    print_session_summary(console, session)
 
 
 @app.command()
@@ -733,36 +1222,46 @@ def chat(
 ):
     """Interactive chat with the code agent - provide a codebase path to index."""
     
+    # Create session tracker for Gemini-style exit summary
+    session = SessionTracker()
+
     if path is None:
-        console.print("[yellow]⚠ No codebase path provided - running in no-index mode[/]")
+        print_chat_welcome(console)
+        console.print("[dim]No codebase path provided - running in no-index mode[/]")
         console.print("[dim]Usage: python main.py chat <path-to-codebase>[/]\n")
-        _display_chat_welcome()
-        console.print("\n[dim]No-index mode: Only natural language chat available[/]\n")
-        
+
         # Simple chat loop without agent
         while True:
             try:
                 message = _get_user_input(console, file)
                 if not message:
                     continue
-                
-                if message.startswith('/'):
-                    if message.lower().strip() in ('/exit', '/quit', '/q'):
+
+                if message.startswith("/"):
+                    if message.lower().strip() in ("/exit", "/quit", "/q"):
                         break
-                    elif message.lower().strip() == '/help':
-                        console.print("\n[yellow]No-index mode - Limited commands:[/]")
-                        console.print("  [cyan]/exit[/] - Exit chat")
-                        console.print("\n[dim]Tip: Provide a codebase path to enable full features:[/]")
-                        console.print("[dim]  python main.py chat <path-to-your-codebase>[/]")
+                    elif message.lower().strip() == "/help":
+                        console.print("\n[dim]No-index mode - Limited commands:[/]")
+                        console.print(f"  [{COLORS['file_cyan']}]/exit[/] - Exit chat")
+                        console.print(
+                            "\n[dim]Tip: Provide a codebase path to enable full features:[/]"
+                        )
+                        console.print(
+                            "[dim]  python main.py chat <path-to-your-codebase>[/]"
+                        )
                     else:
-                        console.print("[yellow]Command not available in no-index mode[/]")
+                        console.print(
+                            "[dim]Command not available in no-index mode[/]"
+                        )
                     continue
-                
-                console.print(f"\n[bold green]🤖 Agent >[/] No-index mode: Provide a codebase path to enable AI features.")
-                console.print(f"[dim]Usage: python main.py chat <path-to-your-codebase>[/]")
-                
+
+                print_agent_thinking(
+                    console,
+                    "No-index mode: Provide a codebase path to enable AI features."
+                )
+
             except KeyboardInterrupt:
-                console.print("\n[yellow]Use /exit to quit[/]")
+                console.print("\n[dim]Use /exit to quit[/]")
                 try:
                     import time
                     time.sleep(2)
@@ -770,58 +1269,75 @@ def chat(
                     break
             except EOFError:
                 break
-        
-        console.print("\n[yellow]👋 Goodbye![/]")
+
+        print_session_summary(console, session)
         return
-    
+
     # Validate path exists
     if not path.exists():
         console.print(f"[red]Error: Path not found: {path}[/]")
         raise typer.Exit(1)
-    
-    console.print(f"[cyan]Indexing codebase:[/] {path}\n")
-    
-    agent = FullStackAgent(path)
-
-    with console.status("Initializing and indexing codebase..."):
-        asyncio.run(agent.initialize())
 
     # Display welcome banner
-    _display_chat_welcome()
+    print_chat_welcome(console, str(path))
+    
+    console.print(f"[dim]Indexing codebase:[/] {path}\n")
+
+    agent = FullStackAgent(path)
+
+    with console.status("[dim]Initializing and indexing codebase...[/]"):
+        asyncio.run(agent.initialize())
+        session.record_tool_call(success=True)
+
+    console.print(f"[{COLORS['success_green']}]✓[/] Codebase indexed successfully\n")
 
     # Chat history
     history = []
-    
+
     while True:
         try:
-            # Get user input with enhanced prompt
+            # Get user input with Gemini-style prompt
             message = _get_user_input(console, file)
-            
+
             if not message:
                 continue
 
             # Handle special commands
-            if message.startswith('/'):
-                if _handle_special_command(message, console, agent, history, file):
+            if message.startswith("/"):
+                if _handle_special_command(message, console, agent, history, file, session):
                     continue
                 else:
                     break
 
             # Add to history
-            history.append({'role': 'user', 'content': message})
+            history.append({"role": "user", "content": message})
 
-            # Show thinking indicator
-            with console.status("[cyan]Thinking..."):
+            # Show thinking indicator with Gemini style
+            print_agent_thinking(
+                console,
+                f"I'll analyze your request and search the codebase for relevant information."
+            )
+            
+            with console.status(f"[{COLORS['warning_yellow']}]![/] Searching codebase..."):
                 response = asyncio.run(agent.chat(message, file))
+                session.record_tool_call(success=True)
+                # Estimate tokens (rough approximation)
+                session.record_tokens(
+                    input_tokens=len(message.split()) * 2,
+                    output_tokens=len(response.get("response", "").split()) * 2,
+                    model="gemini-2.5-pro"
+                )
 
-            # Display response
+            # Display response with Gemini style
             _display_agent_response(console, response)
 
             # Add to history
-            history.append({'role': 'agent', 'content': response['response']})
+            history.append({"role": "agent", "content": response["response"]})
 
         except KeyboardInterrupt:
-            console.print("\n[yellow]Use /exit to quit or press Ctrl+C again to force quit[/]")
+            console.print(
+                "\n[dim]Use /exit to quit or press Ctrl+C again to force quit[/]"
+            )
             try:
                 import time
                 time.sleep(2)
@@ -830,12 +1346,14 @@ def chat(
         except EOFError:
             break
 
-    console.print("\n[yellow]👋 Goodbye![/]")
+    # Print Gemini-style session summary on exit
+    print_session_summary(console, session)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def _display_stats(stats):
     """Display index statistics."""
@@ -873,8 +1391,8 @@ def _display_symbols(symbols):
         table.add_row(
             sym.name,
             sym.kind.value,
-            sym.file.split('/')[-1],
-            str(sym.range.start.line + 1)
+            sym.file.split("/")[-1],
+            str(sym.range.start.line + 1),
         )
 
     console.print(table)
@@ -894,9 +1412,7 @@ def _display_frontend_analysis(analysis):
 
         for api in analysis.api_calls[:15]:
             table.add_row(
-                api.method.value,
-                api.endpoint,
-                "🔒" if api.requires_auth else ""
+                api.method.value, api.endpoint, "🔒" if api.requires_auth else ""
             )
 
         console.print(table)
@@ -924,11 +1440,7 @@ def _display_frontend_analysis(analysis):
 
         for form in analysis.forms[:10]:
             fields = ", ".join(f.name for f in form.fields[:4])
-            table.add_row(
-                form.component or "-",
-                fields,
-                form.submit_endpoint or "-"
-            )
+            table.add_row(form.component or "-", fields, form.submit_endpoint or "-")
 
         console.print(table)
 
@@ -940,12 +1452,78 @@ def _display_frontend_analysis(analysis):
 async def _generate_backend(agent, callback, dry_run: bool):
     """Generate backend with progress."""
     await agent.initialize(callback)
-    
+
     if dry_run:
         callback("dry_run", "Generating preview...")
         # In dry run, we'd generate but not apply
-    
+
     return await agent.generate_backend(callback)
+
+
+def _enter_post_generation_edit(backend_path: Path, agent, console: Console):
+    """Enter edit mode for generated backend code.
+    
+    Provides Claude Code-style editing capabilities for modifying
+    the generated backend with natural language prompts.
+    """
+    console.print(f"\n[bold cyan]🔧 FORGE Edit Mode[/]")
+    console.print(f"[dim]Editing: {backend_path}[/]\n")
+    
+    console.print("[dim]Commands:[/]")
+    console.print("  • Type natural language requests to edit code")
+    console.print("  • [cyan]undo[/] - Undo last change")
+    console.print("  • [cyan]history[/] - Show action history")
+    console.print("  • [cyan]/exit[/] - Exit edit mode")
+    console.print()
+    
+    # Create session tracker
+    session = SessionTracker()
+    
+    # Create agentic loop with the agent for context
+    loop = AgenticLoop(
+        project_path=backend_path,
+        console=console,
+        agent=agent,
+    )
+    
+    # Main edit loop
+    while True:
+        try:
+            # Get user input
+            request = console.input(f"[{COLORS['prompt_gray']}]>[/] ").strip()
+            
+            if not request:
+                continue
+            
+            # Handle exit
+            if request.lower() in ("/exit", "/quit", "/q", "exit", "quit"):
+                break
+            
+            # Process request
+            with console.status("[dim]Thinking...[/]"):
+                response = asyncio.run(loop.process(request))
+            
+            # Display response
+            if response.message:
+                print_agent_response(console, response.message)
+            
+            # Track for session summary
+            for action in response.actions:
+                success = action.status.value == "executed"
+                session.record_tool_call(success=success)
+            
+        except KeyboardInterrupt:
+            console.print("\n[dim]Use /exit to quit[/]")
+            continue
+        except EOFError:
+            break
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/]")
+            logging.exception("Edit mode error")
+    
+    # Show session summary
+    print_session_summary(console, session)
+
 
 
 async def _watch_loop(agent):
@@ -974,54 +1552,59 @@ def _display_chat_welcome():
     console.print("\n[dim]Tips:[/]")
     console.print("  • Press Enter twice to submit multi-line input")
     console.print("  • Use Ctrl+C to interrupt")
-    console.print("  • Specify file context with -f flag or mention files in your message")
+    console.print(
+        "  • Specify file context with -f flag or mention files in your message"
+    )
     console.print("\n" + "═" * 70 + "\n")
 
 
 def _get_user_input(console, current_file=None) -> str:
-    """Get user input with enhanced prompt."""
-    context_indicator = f"[dim]({current_file})[/] " if current_file else ""
-    
+    """Get user input with Gemini-style gray '>' prompt."""
+    # Use Gemini-style prompt
+    prompt = get_user_prompt(current_file)
+
     # Single line input by default
     try:
-        first_line = console.input(f"\n{context_indicator}[bold blue]You >[/] ")
-        
+        first_line = console.input(f"\n{prompt}")
+
         if not first_line.strip():
             return ""
-        
+
         # Check if user wants multi-line (ends with backslash or triple quotes)
-        if first_line.strip().endswith('\\') or first_line.strip().startswith('```'):
-            lines = [first_line.rstrip('\\')]
+        if first_line.strip().endswith("\\") or first_line.strip().startswith("```"):
+            lines = [first_line.rstrip("\\")]
             console.print("[dim](Multi-line mode - press Enter twice to submit)[/]")
-            
+
             empty_count = 0
             while empty_count < 2:
-                line = console.input("[blue]...[/] ")
+                line = console.input(f"[{COLORS['prompt_gray']}]...[/] ")
                 if not line.strip():
                     empty_count += 1
                 else:
                     empty_count = 0
                     lines.append(line)
-                
-                if line.strip() == '```':
+
+                if line.strip() == "```":
                     break
-            
-            return '\n'.join(lines).strip()
-        
+
+            return "\n".join(lines).strip()
+
         return first_line
-        
+
     except (EOFError, KeyboardInterrupt):
         raise
 
 
-def _handle_special_command(command: str, console, agent, history, current_file) -> bool:
+def _handle_special_command(
+    command: str, console, agent, history, current_file, session=None
+) -> bool:
     """Handle special commands. Returns True to continue, False to exit."""
     cmd = command.lower().strip()
-    
-    if cmd in ('/exit', '/quit', '/q'):
+
+    if cmd in ("/exit", "/quit", "/q"):
         return False
-    
-    elif cmd == '/help':
+
+    elif cmd == "/help":
         console.print("\n[bold]Available Commands:[/]")
         console.print("  [cyan]/help[/]              - Show this help message")
         console.print("  [cyan]/search <query>[/]    - Search codebase semantically")
@@ -1035,44 +1618,50 @@ def _handle_special_command(command: str, console, agent, history, current_file)
         console.print("\n[bold]Natural Language:[/]")
         console.print("  Just type your question or request naturally!")
         console.print("  Examples:")
-        console.print("    • \"Find all API endpoints\"")
-        console.print("    • \"Generate a user authentication backend\"")
-        console.print("    • \"Explain how the indexer works\"")
-        console.print("    • \"Add a new endpoint for user profile\"")
-    
-    elif cmd == '/clear':
+        console.print('    • "Find all API endpoints"')
+        console.print('    • "Generate a user authentication backend"')
+        console.print('    • "Explain how the indexer works"')
+        console.print('    • "Add a new endpoint for user profile"')
+
+    elif cmd == "/clear":
         history.clear()
         console.print("[green]✓ Conversation history cleared[/]")
-    
-    elif cmd == '/history':
+
+    elif cmd == "/history":
         if not history:
             console.print("[dim]No conversation history yet[/]")
         else:
             console.print("\n[bold]Conversation History:[/]")
             for i, entry in enumerate(history, 1):
-                role_color = "blue" if entry['role'] == 'user' else "green"
-                role_name = "You" if entry['role'] == 'user' else "Agent"
-                console.print(f"\n[{role_color}]{i}. {role_name}:[/] {entry['content'][:100]}...")
-    
-    elif cmd == '/context':
+                role_color = "blue" if entry["role"] == "user" else "green"
+                role_name = "You" if entry["role"] == "user" else "Agent"
+                console.print(
+                    f"\n[{role_color}]{i}. {role_name}:[/] {entry['content'][:100]}..."
+                )
+
+    elif cmd == "/context":
         if current_file:
             console.print(f"[cyan]Current file context:[/] {current_file}")
         else:
-            console.print("[dim]No file context set. Use -f flag when starting chat.[/]")
-    
-    elif cmd == '/search' or cmd.startswith('/search '):
+            console.print(
+                "[dim]No file context set. Use -f flag when starting chat.[/]"
+            )
+
+    elif cmd == "/search" or cmd.startswith("/search "):
         query = cmd[7:].strip() if len(cmd) > 7 else ""
         if query:
             with console.status("Searching..."):
                 results = asyncio.run(agent.search(query, top_k=5))
             console.print(f"\n[green]Found {results.total_count} results[/]")
             for i, result in enumerate(results.results[:5], 1):
-                console.print(f"\n{i}. [cyan]{result.chunk.file}[/] L{result.chunk.start_line}-{result.chunk.end_line}")
+                console.print(
+                    f"\n{i}. [cyan]{result.chunk.file}[/] L{result.chunk.start_line}-{result.chunk.end_line}"
+                )
                 console.print(f"   [dim]{result.chunk.content[:150]}...[/]")
         else:
             console.print("[yellow]Usage: /search <query>[/]")
-    
-    elif cmd == '/symbols' or cmd.startswith('/symbols '):
+
+    elif cmd == "/symbols" or cmd.startswith("/symbols "):
         query = cmd[8:].strip() if len(cmd) > 8 else ""
         if query:
             results = agent.search_symbols(query, max_results=10)
@@ -1081,47 +1670,52 @@ def _handle_special_command(command: str, console, agent, history, current_file)
                 console.print(f"  [cyan]{sym.name}[/] ({sym.kind.value}) - {sym.file}")
         else:
             console.print("[yellow]Usage: /symbols <query>[/]")
-    
-    elif cmd == '/analyze':
+
+    elif cmd == "/analyze":
         with console.status("Analyzing..."):
             analysis = asyncio.run(agent.analyze_frontend())
         _display_frontend_analysis(analysis)
-    
-    elif cmd == '/generate' or cmd.startswith('/generate '):
+
+    elif cmd == "/generate" or cmd.startswith("/generate "):
         description = cmd[9:].strip() if len(cmd) > 9 else ""
         if description:
             console.print(f"[cyan]Generating code for:[/] {description}")
-            console.print("[dim]This will analyze your frontend and generate matching backend...[/]")
+            console.print(
+                "[dim]This will analyze your frontend and generate matching backend...[/]"
+            )
             # This would trigger the generation flow
             console.print("[yellow]Feature coming soon![/]")
         else:
             console.print("[yellow]Usage: /generate <description>[/]")
-    
+
     else:
         console.print(f"[yellow]Unknown command: {cmd}[/]")
         console.print("[dim]Type /help for available commands[/]")
-    
+
     return True
 
 
 def _display_agent_response(console, response: dict):
-    """Display agent response with rich formatting."""
-    console.print(f"\n[bold green]🤖 Agent >[/] {response['response']}")
-    
-    # Display actions if any
-    if response.get('actions'):
-        console.print("\n[dim]Actions:[/]")
-        for action in response['actions']:
-            action_type = action.get('type', 'unknown')
-            console.print(f"  [cyan]→[/] {action_type}")
-    
+    """Display agent response with Gemini-style formatting."""
+    # Use pink bullet like Gemini CLI
+    response_text = response.get('response', '')
+    response_text = highlight_file_refs(response_text)
+    print_agent_response(console, response_text)
+
+    # Display actions if any with tool-style display
+    if response.get("actions"):
+        console.print()
+        for action in response["actions"]:
+            action_type = action.get("type", "unknown")
+            print_tool_inline(console, action_type, "", status="success")
+
     # Display context used if available
-    if response.get('context_used'):
-        context = response['context_used']
+    if response.get("context_used"):
+        context = response["context_used"]
         if len(context) > 200:
-            console.print(f"\n[dim]Context: {context[:200]}...[/]")
+            print_context_info(console, f"Using context: {context[:200]}...")
         else:
-            console.print(f"\n[dim]Context: {context}[/]")
+            print_context_info(console, f"Using context: {context}")
 
 
 @app.callback(invoke_without_command=True)
@@ -1129,34 +1723,64 @@ def main(ctx: typer.Context):
     """🚀 FORGE - AI-Powered Full-Stack Code Generation System"""
     if ctx.invoked_subcommand is None:
         show_banner()
-        
+
         # Show available commands in a nice panel
         commands_table = Table(show_header=False, box=None, padding=(0, 2))
-        commands_table.add_column("Command", style="cyan bold")
+        commands_table.add_column("Command", style="cyan bold", width=35)
         commands_table.add_column("Description")
-        
-        commands_table.add_row("index run <path>", "Index a project for semantic search")
-        commands_table.add_row("index search <path> <query>", "Search code semantically")
-        commands_table.add_row("index symbols <path>", "List symbols in project")
-        commands_table.add_row("", "")
-        commands_table.add_row("backend generate <path>", "Generate backend from frontend")
-        commands_table.add_row("backend analyze <path>", "Analyze frontend architecture")
-        commands_table.add_row("backend review <path>", "Review code quality & security")
-        commands_table.add_row("backend debug <path>", "Debug code with AI assistance")
-        commands_table.add_row("", "")
-        commands_table.add_row("chat <path>", "Interactive chat with codebase")
+
+        # Setup & Config
+        commands_table.add_row("[bold yellow]Setup & Config[/]", "")
+        commands_table.add_row("setup", "Interactive configuration wizard")
+        commands_table.add_row("stats", "Show usage statistics & costs")
+        commands_table.add_row("help [section]", "Detailed help & documentation")
         commands_table.add_row("init [path]", "Initialize new project")
         commands_table.add_row("status [path]", "Show project status")
-        
-        console.print(Panel(
-            commands_table,
-            title="[bold]📋 Available Commands[/]",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
-        
-        console.print("\n[dim]Run [cyan]python main.py <command> --help[/] for more info on a command.[/]")
-        console.print("[dim]Example: [cyan]python main.py backend generate ./my-frontend[/][/]\n")
+        commands_table.add_row("", "")
+
+        # Backend Generation
+        commands_table.add_row("[bold yellow]Backend Generation[/]", "")
+        commands_table.add_row(
+            "backend analyze <path>", "Analyze frontend architecture"
+        )
+        commands_table.add_row(
+            "backend generate <path>", "Generate backend from frontend"
+        )
+        commands_table.add_row(
+            "backend review <path>", "Review code quality & security"
+        )
+        commands_table.add_row("backend debug <path>", "Debug code with AI assistance")
+        commands_table.add_row(
+            "backend fix <path> -f <file>", "Auto-fix detected issues"
+        )
+        commands_table.add_row("backend add-model <path> <name>", "Add new data model")
+        commands_table.add_row("backend add-endpoint <path>", "Add API endpoint")
+        commands_table.add_row("backend sync <path>", "Sync with frontend changes")
+        commands_table.add_row("backend rollback <path>", "Rollback last change")
+        commands_table.add_row("", "")
+
+        # Code Indexing
+        commands_table.add_row("[bold yellow]Code Indexing[/]", "")
+        commands_table.add_row("index run <path>", "Index project for semantic search")
+        commands_table.add_row(
+            "index search <path> <query>", "Search code semantically"
+        )
+        commands_table.add_row("index symbols <path>", "List symbols in project")
+        commands_table.add_row("", "")
+
+        # Interactive
+        commands_table.add_row("[bold yellow]Interactive[/]", "")
+        commands_table.add_row("chat <path>", "Chat with codebase")
+        commands_table.add_row("edit <path>", "Agentic edit mode - edit with natural language")
+
+        console.print(
+            Panel(
+                commands_table,
+                title="[bold]All Commands (21 Total)[/]",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 """Utility functions."""
 
-import uuid
 import hashlib
 import re
+import uuid
 from typing import Iterator
 
 _encoder = None
@@ -12,6 +12,7 @@ def get_encoder():
     global _encoder
     if _encoder is None:
         import tiktoken
+
         _encoder = tiktoken.get_encoding("cl100k_base")
     return _encoder
 
@@ -37,23 +38,75 @@ def truncate_tokens(text: str, max_tokens: int) -> str:
 
 
 def extract_keywords(text: str, max_count: int = 20) -> list[str]:
-    text = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
-    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
-    text = re.sub(r'#.*$', '', text, flags=re.MULTILINE)
-    text = re.sub(r'["\'].*?["\']', '', text)
+    text = re.sub(r"//.*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    text = re.sub(r"#.*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r'["\'].*?["\']', "", text)
 
-    identifiers = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', text)
+    identifiers = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", text)
 
     stop = {
-        'if', 'else', 'for', 'while', 'return', 'const', 'let', 'var',
-        'function', 'class', 'import', 'export', 'from', 'default',
-        'true', 'false', 'null', 'undefined', 'new', 'this', 'self',
-        'def', 'async', 'await', 'try', 'catch', 'finally', 'throw',
-        'public', 'private', 'protected', 'static', 'readonly',
-        'interface', 'type', 'enum', 'extends', 'implements', 'in',
-        'and', 'or', 'not', 'is', 'as', 'with', 'pass', 'break',
-        'fn', 'mut', 'pub', 'use', 'mod', 'struct', 'impl',
-        'func', 'package', 'go', 'defer', 'chan', 'select', 'case',
+        "if",
+        "else",
+        "for",
+        "while",
+        "return",
+        "const",
+        "let",
+        "var",
+        "function",
+        "class",
+        "import",
+        "export",
+        "from",
+        "default",
+        "true",
+        "false",
+        "null",
+        "undefined",
+        "new",
+        "this",
+        "self",
+        "def",
+        "async",
+        "await",
+        "try",
+        "catch",
+        "finally",
+        "throw",
+        "public",
+        "private",
+        "protected",
+        "static",
+        "readonly",
+        "interface",
+        "type",
+        "enum",
+        "extends",
+        "implements",
+        "in",
+        "and",
+        "or",
+        "not",
+        "is",
+        "as",
+        "with",
+        "pass",
+        "break",
+        "fn",
+        "mut",
+        "pub",
+        "use",
+        "mod",
+        "struct",
+        "impl",
+        "func",
+        "package",
+        "go",
+        "defer",
+        "chan",
+        "select",
+        "case",
     }
 
     keywords = []

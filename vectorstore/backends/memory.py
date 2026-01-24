@@ -1,11 +1,12 @@
 """In-memory vector store backend."""
 
-import numpy as np
 import logging
 from typing import Any
 
-from core.types import Chunk, ChunkType, SymbolKind, CrossFileContext
+import numpy as np
+
 from config.settings import Language
+from core.types import Chunk, ChunkType, CrossFileContext, SymbolKind
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,7 @@ class MemoryBackend:
             self._embeddings = None
 
     async def search(
-        self,
-        query_embedding: np.ndarray,
-        top_k: int = 10,
-        filters: dict | None = None
+        self, query_embedding: np.ndarray, top_k: int = 10, filters: dict | None = None
     ) -> list[tuple[Chunk, float]]:
         if self._embeddings is None or len(self._ids) == 0:
             return []
@@ -74,7 +72,8 @@ class MemoryBackend:
         valid_indices = list(range(len(self._ids)))
         if filters:
             valid_indices = [
-                i for i in valid_indices
+                i
+                for i in valid_indices
                 if self._matches_filter(self._chunks[self._ids[i]], filters)
             ]
 
@@ -101,12 +100,12 @@ class MemoryBackend:
 
             if isinstance(value, dict):
                 if "$in" in value:
-                    if hasattr(chunk_value, 'value'):
+                    if hasattr(chunk_value, "value"):
                         chunk_value = chunk_value.value
                     if chunk_value not in value["$in"]:
                         return False
             else:
-                if hasattr(chunk_value, 'value'):
+                if hasattr(chunk_value, "value"):
                     chunk_value = chunk_value.value
                 if chunk_value != value:
                     return False

@@ -1,13 +1,13 @@
 """File index for tracking indexed files."""
 
 import logging
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Iterator
 
+from config.settings import EXTENSION_MAP, Language
 from core.types import FileInfo
 from core.utils import compute_hash
-from config.settings import Language, EXTENSION_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,9 @@ class FileIndex:
         """Check if file is indexed."""
         return path in self._files
 
-    def update_stats(self, path: str, symbols: int = 0, chunks: int = 0, has_errors: bool = False):
+    def update_stats(
+        self, path: str, symbols: int = 0, chunks: int = 0, has_errors: bool = False
+    ):
         """Update file statistics."""
         if path in self._files:
             self._files[path].symbols = symbols
@@ -73,14 +75,14 @@ class FileIndex:
         by_language: dict[str, int] = {}
         total_size = 0
         error_count = 0
-        
+
         for info in self._files.values():
             lang = info.language.value
             by_language[lang] = by_language.get(lang, 0) + 1
             total_size += info.size
             if info.has_errors:
                 error_count += 1
-        
+
         return {
             "total_files": len(self._files),
             "total_size": total_size,
@@ -94,11 +96,11 @@ def create_file_info(path: str, content: str, root: Path) -> FileInfo:
     relative_path = str(Path(path).relative_to(root)) if root else path
     ext = Path(path).suffix.lower()
     language = EXTENSION_MAP.get(ext, Language.UNKNOWN)
-    
+
     return FileInfo(
         path=relative_path,
         language=language,
         size=len(content),
         hash=compute_hash(content),
-        last_modified=datetime.utcnow()
+        last_modified=datetime.utcnow(),
     )

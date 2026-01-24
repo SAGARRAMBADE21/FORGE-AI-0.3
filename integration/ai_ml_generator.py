@@ -11,7 +11,7 @@ class AIMLGenerator:
     def generate_rag_infrastructure(self) -> dict[str, str]:
         """Generate RAG infrastructure code."""
         return {
-            'src/ai/rag.ts': '''
+            "src/ai/rag.ts": """
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { PineconeStore } from '@langchain/pinecone';
 import { Pinecone } from '@pinecone-database/pinecone';
@@ -91,8 +91,8 @@ export async function generateWithContext(
   const data = await response.json();
   return data.choices[0].message.content;
 }
-''',
-            'src/ai/langchain.ts': '''
+""",
+            "src/ai/langchain.ts": """
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
@@ -143,13 +143,13 @@ export async function generateStructured<T>(
   const structuredLlm = openai.withStructuredOutput(schema);
   return structuredLlm.invoke(prompt) as Promise<T>;
 }
-''',
+""",
         }
 
     def generate_langgraph_agent(self) -> dict[str, str]:
         """Generate LangGraph agent code."""
         return {
-            'src/ai/agent.ts': '''
+            "src/ai/agent.ts": """
 import { StateGraph, END } from '@langchain/langgraph';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
@@ -231,5 +231,5 @@ export async function runAgent(input: string): Promise<string> {
   const lastMessage = result.messages[result.messages.length - 1];
   return lastMessage.content as string;
 }
-''',
+""",
         }

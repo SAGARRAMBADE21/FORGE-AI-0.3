@@ -1,7 +1,7 @@
 """Extract data models and types from frontend code."""
 
-import re
 import logging
+import re
 from pathlib import Path
 
 from core.types import DataModel, FieldInfo, SymbolKind
@@ -49,18 +49,18 @@ class TypeExtractor:
 
     def _parse_type_symbol(self, symbol) -> DataModel | None:
         """Parse a type/interface symbol into a DataModel."""
-        source = symbol.metadata.get('source', symbol.signature)
+        source = symbol.metadata.get("source", symbol.signature)
         if not source:
             return None
 
-        match = re.search(r'\{([^}]+)\}', source, re.DOTALL)
+        match = re.search(r"\{([^}]+)\}", source, re.DOTALL)
         if not match:
             return None
 
         fields = []
         body = match.group(1)
 
-        for m in re.finditer(r'(?:readonly\s+)?(\w+)\s*(\?)?\s*:\s*([^;,\n]+)', body):
+        for m in re.finditer(r"(?:readonly\s+)?(\w+)\s*(\?)?\s*:\s*([^;,\n]+)", body):
             name, optional, type_str = m.groups()
             field = self._parse_field(name, type_str.strip(), optional is not None)
             if field:
@@ -74,18 +74,20 @@ class TypeExtractor:
             name=symbol.name,
             fields=fields,
             source_file=symbol.file,
-            source=source
+            source=source,
         )
 
-    def _parse_field(self, name: str, type_str: str, is_optional: bool) -> FieldInfo | None:
+    def _parse_field(
+        self, name: str, type_str: str, is_optional: bool
+    ) -> FieldInfo | None:
         """Parse a field definition."""
-        is_array = type_str.endswith('[]') or type_str.startswith('Array<')
+        is_array = type_str.endswith("[]") or type_str.startswith("Array<")
         if is_array:
-            type_str = re.sub(r'\[\]$', '', type_str)
-            type_str = re.sub(r'^Array<(.+)>$', r'\1', type_str)
+            type_str = re.sub(r"\[\]$", "", type_str)
+            type_str = re.sub(r"^Array<(.+)>$", r"\1", type_str)
 
-        is_nullable = '| null' in type_str or '| undefined' in type_str
-        type_str = re.sub(r'\s*\|\s*(null|undefined)', '', type_str).strip()
+        is_nullable = "| null" in type_str or "| undefined" in type_str
+        type_str = re.sub(r"\s*\|\s*(null|undefined)", "", type_str).strip()
 
         base_type = self._map_type(type_str)
 
@@ -94,14 +96,14 @@ class TypeExtractor:
         pattern = None
         name_lower = name.lower()
 
-        if 'email' in name_lower:
-            pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
-        elif 'password' in name_lower:
+        if "email" in name_lower:
+            pattern = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+        elif "password" in name_lower:
             min_len = 8
-        elif 'phone' in name_lower:
-            pattern = r'^\+?[\d\s-]{10,}$'
-        elif 'url' in name_lower:
-            pattern = r'^https?://.+'
+        elif "phone" in name_lower:
+            pattern = r"^\+?[\d\s-]{10,}$"
+        elif "url" in name_lower:
+            pattern = r"^https?://.+"
 
         return FieldInfo(
             name=name,
@@ -111,58 +113,89 @@ class TypeExtractor:
             nullable=is_nullable,
             min_length=min_len,
             max_length=max_len,
-            pattern=pattern
+            pattern=pattern,
         )
 
     def _map_type(self, ts_type: str) -> str:
         """Map TypeScript type to generic type."""
         mapping = {
-            'string': 'string', 'number': 'number', 'boolean': 'boolean',
-            'Date': 'datetime', 'any': 'json', 'object': 'json',
-            'unknown': 'json', 'bigint': 'number',
+            "string": "string",
+            "number": "number",
+            "boolean": "boolean",
+            "Date": "datetime",
+            "any": "json",
+            "object": "json",
+            "unknown": "json",
+            "bigint": "number",
         }
-        
+
         if ts_type.lower() in mapping:
             return mapping[ts_type.lower()]
         if ts_type in mapping:
             return mapping[ts_type]
-        if ts_type.startswith('Record<') or ts_type.startswith('Map<'):
-            return 'json'
+        if ts_type.startswith("Record<") or ts_type.startswith("Map<"):
+            return "json"
         if ts_type[0].isupper():
-            return f'relation:{ts_type}'
-        return 'string'
+            return f"relation:{ts_type}"
+        return "string"
 
     def _is_data_model(self, model: DataModel) -> bool:
         """Check if this looks like a data model."""
-        skip_suffixes = ['props', 'state', 'context', 'handler', 'config', 
-                        'options', 'params', 'settings', 'theme', 'style']
-        
+        skip_suffixes = [
+            "props",
+            "state",
+            "context",
+            "handler",
+            "config",
+            "options",
+            "params",
+            "settings",
+            "theme",
+            "style",
+        ]
+
         name_lower = model.name.lower()
         if any(name_lower.endswith(s) for s in skip_suffixes):
             return False
 
         field_names = {f.name.lower() for f in model.fields}
-        indicators = {'id', 'uuid', 'name', 'email', 'title', 'description',
-                     'createdat', 'created_at', 'updatedat', 'updated_at',
-                     'userid', 'user_id', 'status'}
-        
+        indicators = {
+            "id",
+            "uuid",
+            "name",
+            "email",
+            "title",
+            "description",
+            "createdat",
+            "created_at",
+            "updatedat",
+            "updated_at",
+            "userid",
+            "user_id",
+            "status",
+        }
+
         return bool(field_names & indicators)
 
     def _is_model_class(self, symbol) -> bool:
         """Check if class is a data model."""
         if symbol.decorators:
-            orm_decorators = ['Entity', 'Table', 'Model', 'Schema']
-            return any(any(d in dec for d in orm_decorators) for dec in symbol.decorators)
+            orm_decorators = ["Entity", "Table", "Model", "Schema"]
+            return any(
+                any(d in dec for d in orm_decorators) for dec in symbol.decorators
+            )
         return False
 
     def _parse_class(self, symbol) -> DataModel | None:
         """Parse a class as a data model."""
         fields = []
-        
-        source = symbol.metadata.get('source', symbol.signature)
-        for m in re.finditer(r'(?:@\w+\([^)]*\)\s*)*(\w+)\s*(?::\s*([^;=]+))?(?:\s*=\s*[^;]+)?;', source):
+
+        source = symbol.metadata.get("source", symbol.signature)
+        for m in re.finditer(
+            r"(?:@\w+\([^)]*\)\s*)*(\w+)\s*(?::\s*([^;=]+))?(?:\s*=\s*[^;]+)?;", source
+        ):
             name = m.group(1)
-            type_str = m.group(2) or 'any'
+            type_str = m.group(2) or "any"
             field = self._parse_field(name.strip(), type_str.strip(), False)
             if field:
                 fields.append(field)
@@ -175,5 +208,5 @@ class TypeExtractor:
             name=symbol.name,
             fields=fields,
             source_file=symbol.file,
-            source=source
+            source=source,
         )

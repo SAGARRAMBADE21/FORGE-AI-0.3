@@ -1,11 +1,12 @@
 """MongoDB Atlas Vector Search backend."""
 
 import logging
-import numpy as np
 from typing import Any
 
+import numpy as np
+
+from config.settings import Language, settings
 from core.types import Chunk, ChunkType, SymbolKind
-from config.settings import settings, Language
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +41,17 @@ class MongoDBBackend:
 
         # Create async MongoDB client
         self._client = AsyncIOMotorClient(mongodb_uri)
-        
+
         # Get database and collection
         db_name = settings.vectorstore.mongodb_database
         collection_name = settings.vectorstore.mongodb_collection
-        
+
         self._db = self._client[db_name]
         self._collection = self._db[collection_name]
 
         # Test connection
         try:
-            await self._client.admin.command('ping')
+            await self._client.admin.command("ping")
             logger.info(f"MongoDB Atlas connected: {db_name}.{collection_name}")
         except Exception as e:
             logger.error(f"MongoDB connection failed: {e}")
@@ -107,11 +108,19 @@ class MongoDBBackend:
                 "file": chunk.file,
                 "start_line": chunk.start_line,
                 "end_line": chunk.end_line,
-                "chunk_type": chunk.chunk_type if isinstance(chunk.chunk_type, str) else chunk.chunk_type.value,
+                "chunk_type": (
+                    chunk.chunk_type
+                    if isinstance(chunk.chunk_type, str)
+                    else chunk.chunk_type.value
+                ),
                 "symbol_id": chunk.symbol_id or "",
                 "symbol_name": chunk.symbol_name or "",
                 "symbol_kind": chunk.symbol_kind.value if chunk.symbol_kind else "",
-                "language": chunk.language if isinstance(chunk.language, str) else chunk.language.value,
+                "language": (
+                    chunk.language
+                    if isinstance(chunk.language, str)
+                    else chunk.language.value
+                ),
                 "tokens": chunk.tokens,
                 "parent_context": chunk.parent_context or "",
                 "keywords": chunk.keywords[:20] if chunk.keywords else [],
@@ -121,14 +130,12 @@ class MongoDBBackend:
         # Insert in batches to avoid memory issues
         batch_size = 500
         for i in range(0, len(documents), batch_size):
-            batch = documents[i:i + batch_size]
+            batch = documents[i : i + batch_size]
             try:
                 # Use replace_one with upsert to handle duplicates
                 for doc in batch:
                     await self._collection.replace_one(
-                        {"_id": doc["_id"]},
-                        doc,
-                        upsert=True
+                        {"_id": doc["_id"]}, doc, upsert=True
                     )
             except Exception as e:
                 logger.error(f"Error inserting batch: {e}")
@@ -136,9 +143,7 @@ class MongoDBBackend:
                 for doc in batch:
                     try:
                         await self._collection.replace_one(
-                            {"_id": doc["_id"]},
-                            doc,
-                            upsert=True
+                            {"_id": doc["_id"]}, doc, upsert=True
                         )
                     except Exception as e2:
                         logger.error(f"Error inserting chunk {doc['_id']}: {e2}")
@@ -146,13 +151,10 @@ class MongoDBBackend:
         logger.debug(f"Added {len(valid_chunks)} chunks to MongoDB")
 
     async def search(
-        self,
-        query_embedding: np.ndarray,
-        top_k: int = 10,
-        filters: dict | None = None
+        self, query_embedding: np.ndarray, top_k: int = 10, filters: dict | None = None
     ) -> list[tuple[Chunk, float]]:
         """Search using MongoDB Atlas Vector Search."""
-        
+
         # Build the vector search pipeline
         pipeline = []
 
@@ -163,52 +165,61 @@ class MongoDBBackend:
                 "path": "embedding",
                 "queryVector": query_embedding.tolist(),
                 "numCandidates": top_k * 10,  # Overrequest for better results
-                "limit": top_k
+                "limit": top_k,
             }
         }
 
         # Add filters if provided
         if filters:
             filter_conditions = []
-            
+
             if "file" in filters:
                 filter_conditions.append({"file": filters["file"]})
-            
+
             if "language" in filters:
-                if isinstance(filters["language"], dict) and "$in" in filters["language"]:
-                    filter_conditions.append({"language": {"$in": filters["language"]["$in"]}})
+                if (
+                    isinstance(filters["language"], dict)
+                    and "$in" in filters["language"]
+                ):
+                    filter_conditions.append(
+                        {"language": {"$in": filters["language"]["$in"]}}
+                    )
                 else:
                     filter_conditions.append({"language": filters["language"]})
-            
+
             if "chunk_type" in filters:
                 filter_conditions.append({"chunk_type": filters["chunk_type"]})
-            
+
             if filter_conditions:
-                vector_search["$vectorSearch"]["filter"] = {
-                    "$and": filter_conditions
-                } if len(filter_conditions) > 1 else filter_conditions[0]
+                vector_search["$vectorSearch"]["filter"] = (
+                    {"$and": filter_conditions}
+                    if len(filter_conditions) > 1
+                    else filter_conditions[0]
+                )
 
         pipeline.append(vector_search)
 
         # Add score projection
-        pipeline.append({
-            "$project": {
-                "_id": 1,
-                "content": 1,
-                "file": 1,
-                "start_line": 1,
-                "end_line": 1,
-                "chunk_type": 1,
-                "symbol_id": 1,
-                "symbol_name": 1,
-                "symbol_kind": 1,
-                "language": 1,
-                "tokens": 1,
-                "parent_context": 1,
-                "keywords": 1,
-                "score": {"$meta": "vectorSearchScore"}
+        pipeline.append(
+            {
+                "$project": {
+                    "_id": 1,
+                    "content": 1,
+                    "file": 1,
+                    "start_line": 1,
+                    "end_line": 1,
+                    "chunk_type": 1,
+                    "symbol_id": 1,
+                    "symbol_name": 1,
+                    "symbol_kind": 1,
+                    "language": 1,
+                    "tokens": 1,
+                    "parent_context": 1,
+                    "keywords": 1,
+                    "score": {"$meta": "vectorSearchScore"},
+                }
             }
-        })
+        )
 
         # Execute search
         try:
@@ -216,7 +227,9 @@ class MongoDBBackend:
             results = await cursor.to_list(length=top_k)
         except Exception as e:
             logger.error(f"Vector search error: {e}")
-            logger.info("Falling back to empty results. Ensure vector index is created in Atlas.")
+            logger.info(
+                "Falling back to empty results. Ensure vector index is created in Atlas."
+            )
             return []
 
         # Convert to chunks
@@ -236,10 +249,10 @@ class MongoDBBackend:
                     "symbol_name": result.get("symbol_name"),
                     "symbol_kind": result.get("symbol_kind"),
                     "parent_context": result.get("parent_context", ""),
-                    "keywords": result.get("keywords", [])
-                }
+                    "keywords": result.get("keywords", []),
+                },
             )
-            
+
             score = result.get("score", 0.0)
             chunks_with_scores.append((chunk, score))
 
@@ -257,7 +270,7 @@ class MongoDBBackend:
         """Delete specific chunks by ID."""
         if not ids:
             return
-        
+
         try:
             result = await self._collection.delete_many({"_id": {"$in": ids}})
             logger.debug(f"Deleted {result.deleted_count} chunks")
@@ -293,16 +306,24 @@ class MongoDBBackend:
                 return Chunk(
                     id=str(doc["_id"]),
                     content=doc.get("content", ""),
-                    chunk_type=ChunkType(doc["chunk_type"]) if doc.get("chunk_type") else ChunkType.CODE_BLOCK,
+                    chunk_type=(
+                        ChunkType(doc["chunk_type"])
+                        if doc.get("chunk_type")
+                        else ChunkType.CODE_BLOCK
+                    ),
                     file=doc.get("file", ""),
                     start_line=doc.get("start_line", 0),
                     end_line=doc.get("end_line", 0),
                     tokens=doc.get("tokens", 0),
-                    language=Language(doc["language"]) if doc.get("language") else Language.UNKNOWN,
+                    language=(
+                        Language(doc["language"])
+                        if doc.get("language")
+                        else Language.UNKNOWN
+                    ),
                 )
         except Exception as e:
             logger.debug(f"Get chunk error: {e}")
-        
+
         return None
 
     async def close(self):

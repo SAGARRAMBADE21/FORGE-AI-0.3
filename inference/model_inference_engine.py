@@ -1,13 +1,17 @@
 """Engine for inferring data models from frontend evidence."""
 
-import re
 import logging
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 
 from core.types import (
-    Evidence, EvidenceSource, InferredModel, InferredField,
-    InferredFieldType, InferredRelationType
+    Evidence,
+    EvidenceSource,
+    InferredField,
+    InferredFieldType,
+    InferredModel,
+    InferredRelationType,
 )
 from core.utils import generate_id
 
@@ -17,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FieldCandidate:
     """Candidate field from evidence."""
+
     name: str
     field_type: InferredFieldType
     nullable: bool = False
@@ -36,7 +41,7 @@ class FieldCandidate:
 class ModelInferenceEngine:
     """
     Infer data models from frontend evidence.
-    
+
     Process:
     1. Collect evidence from multiple sources
     2. Cluster related evidence by model name
@@ -49,8 +54,7 @@ class ModelInferenceEngine:
         self._llm = llm_client
 
     async def infer_models(
-        self, 
-        evidence_map: dict[str, list[Evidence]]
+        self, evidence_map: dict[str, list[Evidence]]
     ) -> list[InferredModel]:
         """Infer models from collected evidence."""
         models = []
@@ -68,9 +72,7 @@ class ModelInferenceEngine:
         return models
 
     async def _infer_single_model(
-        self, 
-        name: str, 
-        evidences: list[Evidence]
+        self, name: str, evidences: list[Evidence]
     ) -> InferredModel | None:
         """Infer a single model from its evidence."""
         if not evidences:
@@ -104,13 +106,13 @@ class ModelInferenceEngine:
             timestamps=self._should_have_timestamps(name, fields),
             soft_delete=self._should_have_soft_delete(name, fields),
             evidence=evidences,
-            confidence=confidence
+            confidence=confidence,
         )
 
     def _extract_field_candidates(self, evidence: Evidence) -> list[FieldCandidate]:
         """Extract field candidates from a single evidence."""
         candidates = []
-        
+
         if evidence.source == EvidenceSource.TYPESCRIPT_TYPE:
             candidates.extend(self._from_typescript(evidence))
         elif evidence.source == EvidenceSource.ZOD_SCHEMA:
@@ -131,14 +133,16 @@ class ModelInferenceEngine:
 
         for f in fields:
             field_type = self._map_ts_type(f.get("type", "string"))
-            
-            candidates.append(FieldCandidate(
-                name=f["name"],
-                field_type=field_type,
-                nullable=f.get("nullable", False) or not f.get("required", True),
-                evidence=[evidence],
-                confidence=evidence.confidence
-            ))
+
+            candidates.append(
+                FieldCandidate(
+                    name=f["name"],
+                    field_type=field_type,
+                    nullable=f.get("nullable", False) or not f.get("required", True),
+                    evidence=[evidence],
+                    confidence=evidence.confidence,
+                )
+            )
 
         return candidates
 
@@ -149,32 +153,36 @@ class ModelInferenceEngine:
 
         for f in fields:
             field_type = self._map_ts_type(f.get("type", "string"))
-            
-            candidates.append(FieldCandidate(
-                name=f["name"],
-                field_type=field_type,
-                nullable=not f.get("required", True),
-                evidence=[evidence],
-                confidence=evidence.confidence,
-                constraints=self._extract_zod_constraints(f)
-            ))
+
+            candidates.append(
+                FieldCandidate(
+                    name=f["name"],
+                    field_type=field_type,
+                    nullable=not f.get("required", True),
+                    evidence=[evidence],
+                    confidence=evidence.confidence,
+                    constraints=self._extract_zod_constraints(f),
+                )
+            )
 
         return candidates
 
     def _from_api(self, evidence: Evidence) -> list[FieldCandidate]:
         """Extract candidates from API response."""
         candidates = []
-        
+
         # Infer fields from path params
         for param in evidence.metadata.get("path_params", []):
             if param.endswith("Id"):
-                candidates.append(FieldCandidate(
-                    name=param,
-                    field_type=InferredFieldType.STRING,
-                    indexed=True,
-                    evidence=[evidence],
-                    confidence=0.6
-                ))
+                candidates.append(
+                    FieldCandidate(
+                        name=param,
+                        field_type=InferredFieldType.STRING,
+                        indexed=True,
+                        evidence=[evidence],
+                        confidence=0.6,
+                    )
+                )
 
         # Infer from response type if it's a known type
         response_type = evidence.metadata.get("response_type")
@@ -191,7 +199,7 @@ class ModelInferenceEngine:
 
         for f in fields:
             field_type = self._map_input_type(f.get("input_type", "text"))
-            
+
             constraints = {}
             if f.get("min_length"):
                 constraints["min_length"] = f["min_length"]
@@ -200,14 +208,16 @@ class ModelInferenceEngine:
             if f.get("pattern"):
                 constraints["pattern"] = f["pattern"]
 
-            candidates.append(FieldCandidate(
-                name=f["name"],
-                field_type=field_type,
-                nullable=not f.get("required", False),
-                evidence=[evidence],
-                confidence=evidence.confidence,
-                constraints=constraints
-            ))
+            candidates.append(
+                FieldCandidate(
+                    name=f["name"],
+                    field_type=field_type,
+                    nullable=not f.get("required", False),
+                    evidence=[evidence],
+                    confidence=evidence.confidence,
+                    constraints=constraints,
+                )
+            )
 
         return candidates
 
@@ -217,16 +227,14 @@ class ModelInferenceEngine:
         return []
 
     async def _merge_field_candidates(
-        self, 
-        name: str, 
-        candidates: list[FieldCandidate]
+        self, name: str, candidates: list[FieldCandidate]
     ) -> InferredField | None:
         """Merge multiple candidates into a single field."""
         if not candidates:
             return None
 
         # Skip internal fields
-        if name in ('__typename', '_id'):
+        if name in ("__typename", "_id"):
             return None
 
         # Group by type
@@ -239,7 +247,9 @@ class ModelInferenceEngine:
             final_type = list(type_counts.keys())[0]
         else:
             # Check for conflicts that need LLM resolution
-            final_type = await self._resolve_type_conflict(name, candidates, type_counts)
+            final_type = await self._resolve_type_conflict(
+                name, candidates, type_counts
+            )
 
         # Merge nullable (any evidence of nullable = nullable)
         nullable = any(c.nullable for c in candidates)
@@ -248,7 +258,7 @@ class ModelInferenceEngine:
         unique = any(c.unique for c in candidates)
 
         # Merge indexed
-        indexed = any(c.indexed for c in candidates) or name.endswith('Id')
+        indexed = any(c.indexed for c in candidates) or name.endswith("Id")
 
         # Merge constraints (union)
         constraints = {}
@@ -277,11 +287,11 @@ class ModelInferenceEngine:
         self,
         field_name: str,
         candidates: list[FieldCandidate],
-        type_counts: dict[InferredFieldType, int]
+        type_counts: dict[InferredFieldType, int],
     ) -> InferredFieldType:
         """Resolve type conflict, using LLM if needed."""
         # First try deterministic resolution
-        
+
         # If one type is clearly more common
         total = sum(type_counts.values())
         for field_type, count in type_counts.items():
@@ -314,9 +324,7 @@ class ModelInferenceEngine:
         return InferredFieldType.STRING
 
     async def _ask_llm_for_type(
-        self, 
-        field_name: str, 
-        candidates: list[FieldCandidate]
+        self, field_name: str, candidates: list[FieldCandidate]
     ) -> InferredFieldType:
         """Ask LLM to resolve type conflict."""
         # Build context
@@ -344,26 +352,26 @@ Return only the type name."""
     def _map_ts_type(self, ts_type: str) -> InferredFieldType:
         """Map TypeScript type to field type."""
         ts_type_lower = ts_type.lower()
-        
+
         mapping = {
-            'string': InferredFieldType.STRING,
-            'number': InferredFieldType.FLOAT,
-            'boolean': InferredFieldType.BOOLEAN,
-            'date': InferredFieldType.DATETIME,
-            'json': InferredFieldType.JSON,
-            'object': InferredFieldType.JSON,
-            'any': InferredFieldType.JSON,
+            "string": InferredFieldType.STRING,
+            "number": InferredFieldType.FLOAT,
+            "boolean": InferredFieldType.BOOLEAN,
+            "date": InferredFieldType.DATETIME,
+            "json": InferredFieldType.JSON,
+            "object": InferredFieldType.JSON,
+            "any": InferredFieldType.JSON,
         }
 
         if ts_type_lower in mapping:
             return mapping[ts_type_lower]
 
         # Check for relation
-        if ts_type.startswith('relation:'):
+        if ts_type.startswith("relation:"):
             return InferredFieldType.RELATION
 
         # Check for UUID patterns
-        if 'uuid' in ts_type_lower or 'id' in ts_type_lower:
+        if "uuid" in ts_type_lower or "id" in ts_type_lower:
             return InferredFieldType.UUID
 
         return InferredFieldType.STRING
@@ -371,17 +379,17 @@ Return only the type name."""
     def _map_input_type(self, input_type: str) -> InferredFieldType:
         """Map form input type to field type."""
         mapping = {
-            'text': InferredFieldType.STRING,
-            'email': InferredFieldType.STRING,
-            'password': InferredFieldType.STRING,
-            'textarea': InferredFieldType.TEXT,
-            'number': InferredFieldType.INTEGER,
-            'tel': InferredFieldType.STRING,
-            'url': InferredFieldType.STRING,
-            'date': InferredFieldType.DATE,
-            'datetime-local': InferredFieldType.DATETIME,
-            'checkbox': InferredFieldType.BOOLEAN,
-            'select': InferredFieldType.STRING,
+            "text": InferredFieldType.STRING,
+            "email": InferredFieldType.STRING,
+            "password": InferredFieldType.STRING,
+            "textarea": InferredFieldType.TEXT,
+            "number": InferredFieldType.INTEGER,
+            "tel": InferredFieldType.STRING,
+            "url": InferredFieldType.STRING,
+            "date": InferredFieldType.DATE,
+            "datetime-local": InferredFieldType.DATETIME,
+            "checkbox": InferredFieldType.BOOLEAN,
+            "select": InferredFieldType.STRING,
         }
         return mapping.get(input_type, InferredFieldType.STRING)
 
@@ -396,28 +404,35 @@ Return only the type name."""
             field_names = {f.name for f in model.fields}
 
             # Add id if not present
-            if 'id' not in field_names:
-                model.fields.insert(0, InferredField(
-                    name='id',
-                    field_type=InferredFieldType.UUID,
-                    unique=True,
-                    indexed=True
-                ))
+            if "id" not in field_names:
+                model.fields.insert(
+                    0,
+                    InferredField(
+                        name="id",
+                        field_type=InferredFieldType.UUID,
+                        unique=True,
+                        indexed=True,
+                    ),
+                )
 
             # Add timestamps if enabled
             if model.timestamps:
-                if 'createdAt' not in field_names and 'created_at' not in field_names:
-                    model.fields.append(InferredField(
-                        name='createdAt',
-                        field_type=InferredFieldType.DATETIME,
-                        nullable=False
-                    ))
-                if 'updatedAt' not in field_names and 'updated_at' not in field_names:
-                    model.fields.append(InferredField(
-                        name='updatedAt',
-                        field_type=InferredFieldType.DATETIME,
-                        nullable=False
-                    ))
+                if "createdAt" not in field_names and "created_at" not in field_names:
+                    model.fields.append(
+                        InferredField(
+                            name="createdAt",
+                            field_type=InferredFieldType.DATETIME,
+                            nullable=False,
+                        )
+                    )
+                if "updatedAt" not in field_names and "updated_at" not in field_names:
+                    model.fields.append(
+                        InferredField(
+                            name="updatedAt",
+                            field_type=InferredFieldType.DATETIME,
+                            nullable=False,
+                        )
+                    )
 
         return models
 
@@ -426,11 +441,11 @@ Return only the type name."""
         for model in models:
             for field in model.fields:
                 # Index foreign keys
-                if field.name.endswith('Id'):
+                if field.name.endswith("Id"):
                     field.indexed = True
-                
+
                 # Index common query fields
-                if field.name in ('email', 'username', 'slug', 'status'):
+                if field.name in ("email", "username", "slug", "status"):
                     field.indexed = True
 
         return models
@@ -443,5 +458,5 @@ Return only the type name."""
     def _should_have_soft_delete(self, name: str, fields: list[InferredField]) -> bool:
         """Determine if model should have soft delete."""
         # Enable for user-facing models
-        user_models = {'user', 'post', 'comment', 'order', 'product'}
+        user_models = {"user", "post", "comment", "order", "product"}
         return name.lower() in user_models

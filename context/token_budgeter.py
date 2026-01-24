@@ -8,6 +8,7 @@ from core.utils import count_tokens
 @dataclass
 class TokenBudget:
     """Token budget allocation."""
+
     total: int = 8000
     search_results: int = 4000
     current_file: int = 2000
@@ -46,7 +47,7 @@ class TokenBudgeter:
     def truncate_to_fit(self, text: str, max_tokens: int | None = None) -> str:
         """Truncate text to fit in budget."""
         from core.utils import truncate_tokens
-        
+
         limit = min(max_tokens or self.remaining, self.remaining)
         return truncate_tokens(text, limit)
 

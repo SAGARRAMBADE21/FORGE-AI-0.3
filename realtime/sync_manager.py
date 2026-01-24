@@ -3,12 +3,12 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
-from realtime.file_watcher import FileWatcher
+from config.settings import settings
 from realtime.background_indexer import BackgroundIndexer
 from realtime.change_tracker import ChangeTracker
-from config.settings import settings
+from realtime.file_watcher import FileWatcher
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class SyncManager:
         self,
         project_root: Path,
         update_file_fn: Callable[[str], Awaitable[None]],
-        remove_file_fn: Callable[[str], Awaitable[None]]
+        remove_file_fn: Callable[[str], Awaitable[None]],
     ):
         self.root = project_root
         self._update_fn = update_file_fn
@@ -69,7 +69,7 @@ class SyncManager:
             return
 
         try:
-            content = full_path.read_text(encoding='utf-8', errors='replace')
+            content = full_path.read_text(encoding="utf-8", errors="replace")
 
             # Check if actually changed
             if not self._tracker.has_changed(file, content):

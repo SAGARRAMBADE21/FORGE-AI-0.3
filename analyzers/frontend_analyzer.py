@@ -4,16 +4,20 @@ import json
 import logging
 from pathlib import Path
 
-from core.types import (
-    FrontendAnalysis, DataModel, Relationship, FrameworkType, RouteInfo
-)
-from config.settings import Language
-from indexers.unified_indexer import UnifiedIndexer
 from analyzers.api_extractor import APIExtractor
-from analyzers.type_extractor import TypeExtractor
-from analyzers.form_extractor import FormExtractor
-from analyzers.component_analyzer import ComponentAnalyzer
 from analyzers.auth_analyzer import AuthAnalyzer
+from analyzers.component_analyzer import ComponentAnalyzer
+from analyzers.form_extractor import FormExtractor
+from analyzers.type_extractor import TypeExtractor
+from config.settings import Language
+from core.types import (
+    DataModel,
+    FrameworkType,
+    FrontendAnalysis,
+    Relationship,
+    RouteInfo,
+)
+from indexers.unified_indexer import UnifiedIndexer
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +41,9 @@ class FrontendAnalyzer:
         api_calls = await self._api_extractor.extract_all(indexer)
         data_models = await self._type_extractor.extract_all(indexer)
         forms = await self._form_extractor.extract_all(indexer)
-        components = await self._component_analyzer.analyze_all(indexer, api_calls, forms)
+        components = await self._component_analyzer.analyze_all(
+            indexer, api_calls, forms
+        )
         auth = await self._auth_analyzer.detect(indexer, api_calls)
         routes = await self._extract_routes(indexer)
 
@@ -62,7 +68,7 @@ class FrontendAnalyzer:
             components=components,
             auth=auth,
             routes=routes,
-            stats=indexer.stats
+            stats=indexer.stats,
         )
 
     async def _extract_routes(self, indexer: UnifiedIndexer) -> list[RouteInfo]:
@@ -81,11 +87,15 @@ class FrontendAnalyzer:
 
         # React Router
         for file_info in indexer.file_index.all_files():
-            if file_info.language not in (Language.TYPESCRIPT, Language.TSX,
-                                         Language.JAVASCRIPT, Language.JSX):
+            if file_info.language not in (
+                Language.TYPESCRIPT,
+                Language.TSX,
+                Language.JAVASCRIPT,
+                Language.JSX,
+            ):
                 continue
             content = indexer.get_file_content(file_info.path)
-            if content and '<Route' in content:
+            if content and "<Route" in content:
                 routes.extend(self._extract_react_router(content, file_info.path))
 
         return routes
@@ -93,79 +103,90 @@ class FrontendAnalyzer:
     def _extract_nextjs_pages(self, pages_dir: Path) -> list[RouteInfo]:
         """Extract routes from Next.js pages directory."""
         routes = []
-        
-        for path in pages_dir.rglob('*.tsx'):
-            if path.name.startswith('_'):
+
+        for path in pages_dir.rglob("*.tsx"):
+            if path.name.startswith("_"):
                 continue
-            
+
             rel = path.relative_to(pages_dir)
-            route = '/' + str(rel.with_suffix('')).replace('\\', '/')
-            route = route.replace('/index', '')
+            route = "/" + str(rel.with_suffix("")).replace("\\", "/")
+            route = route.replace("/index", "")
             if not route:
-                route = '/'
-            
+                route = "/"
+
             # Convert [param] to :param
-            is_dynamic = '[' in route
-            route = re.sub(r'\[([^\]]+)\]', r':\1', route)
-            params = re.findall(r':(\w+)', route)
-            
-            routes.append(RouteInfo(
-                path=route,
-                component=path.stem,
-                file=str(path.relative_to(self.root)),
-                is_dynamic=is_dynamic,
-                params=params
-            ))
-        
+            is_dynamic = "[" in route
+            route = re.sub(r"\[([^\]]+)\]", r":\1", route)
+            params = re.findall(r":(\w+)", route)
+
+            routes.append(
+                RouteInfo(
+                    path=route,
+                    component=path.stem,
+                    file=str(path.relative_to(self.root)),
+                    is_dynamic=is_dynamic,
+                    params=params,
+                )
+            )
+
         return routes
 
     def _extract_nextjs_app(self, app_dir: Path) -> list[RouteInfo]:
         """Extract routes from Next.js app directory."""
         routes = []
-        
-        for path in app_dir.rglob('page.tsx'):
+
+        for path in app_dir.rglob("page.tsx"):
             rel = path.parent.relative_to(app_dir)
-            route = '/' + str(rel).replace('\\', '/')
-            if route == '/.':
-                route = '/'
-            
-            is_dynamic = '[' in route
-            route = re.sub(r'\[([^\]]+)\]', r':\1', route)
-            params = re.findall(r':(\w+)', route)
-            
-            routes.append(RouteInfo(
-                path=route,
-                component="page",
-                file=str(path.relative_to(self.root)),
-                is_dynamic=is_dynamic,
-                params=params
-            ))
-        
+            route = "/" + str(rel).replace("\\", "/")
+            if route == "/.":
+                route = "/"
+
+            is_dynamic = "[" in route
+            route = re.sub(r"\[([^\]]+)\]", r":\1", route)
+            params = re.findall(r":(\w+)", route)
+
+            routes.append(
+                RouteInfo(
+                    path=route,
+                    component="page",
+                    file=str(path.relative_to(self.root)),
+                    is_dynamic=is_dynamic,
+                    params=params,
+                )
+            )
+
         return routes
 
     def _extract_react_router(self, content: str, file: str) -> list[RouteInfo]:
         """Extract routes from React Router."""
         routes = []
         import re
-        
-        for m in re.finditer(r'<Route[^>]*path\s*=\s*[\'"]([^\'"]+)[\'"][^>]*(?:component|element)\s*=\s*\{?\s*<?(\w+)', content):
+
+        for m in re.finditer(
+            r'<Route[^>]*path\s*=\s*[\'"]([^\'"]+)[\'"][^>]*(?:component|element)\s*=\s*\{?\s*<?(\w+)',
+            content,
+        ):
             path = m.group(1)
             component = m.group(2)
-            
-            is_dynamic = ':' in path
-            params = re.findall(r':(\w+)', path)
-            
-            routes.append(RouteInfo(
-                path=path,
-                component=component,
-                file=file,
-                is_dynamic=is_dynamic,
-                params=params
-            ))
-        
+
+            is_dynamic = ":" in path
+            params = re.findall(r":(\w+)", path)
+
+            routes.append(
+                RouteInfo(
+                    path=path,
+                    component=component,
+                    file=file,
+                    is_dynamic=is_dynamic,
+                    params=params,
+                )
+            )
+
         return routes
 
-    def _infer_relationships(self, models: list[DataModel], api_calls: list) -> list[DataModel]:
+    def _infer_relationships(
+        self, models: list[DataModel], api_calls: list
+    ) -> list[DataModel]:
         """Infer relationships between models."""
         model_names = {m.name.lower(): m.name for m in models}
 
@@ -174,39 +195,56 @@ class FrontendAnalyzer:
 
             for field in model.fields:
                 # Foreign key pattern
-                if field.name.endswith('Id') or field.name.endswith('_id'):
-                    ref = field.name[:-2] if field.name.endswith('Id') else field.name[:-3]
+                if field.name.endswith("Id") or field.name.endswith("_id"):
+                    ref = (
+                        field.name[:-2]
+                        if field.name.endswith("Id")
+                        else field.name[:-3]
+                    )
                     if ref.lower() in model_names:
-                        relationships.append(Relationship(
-                            type="manyToOne",
-                            target=model_names[ref.lower()],
-                            field=field.name,
-                            foreign_key=field.name
-                        ))
+                        relationships.append(
+                            Relationship(
+                                type="manyToOne",
+                                target=model_names[ref.lower()],
+                                field=field.name,
+                                foreign_key=field.name,
+                            )
+                        )
 
                 # Type reference
-                if field.field_type.startswith('relation:'):
-                    target = field.field_type.split(':')[1]
-                    relationships.append(Relationship(
-                        type="oneToMany" if field.array else "manyToOne",
-                        target=target,
-                        field=field.name
-                    ))
+                if field.field_type.startswith("relation:"):
+                    target = field.field_type.split(":")[1]
+                    relationships.append(
+                        Relationship(
+                            type="oneToMany" if field.array else "manyToOne",
+                            target=target,
+                            field=field.name,
+                        )
+                    )
 
             # Infer from API endpoints
             import re
+
             for api in api_calls:
-                parts = api.endpoint.split('/')
+                parts = api.endpoint.split("/")
                 for i, part in enumerate(parts):
-                    if part.startswith(':') and part.endswith('Id') and i + 1 < len(parts):
+                    if (
+                        part.startswith(":")
+                        and part.endswith("Id")
+                        and i + 1 < len(parts)
+                    ):
                         parent = part[1:-2].lower()
-                        child = parts[i + 1].lower().rstrip('s')
-                        if parent in model_names and child in model_names and model.name.lower() == child:
+                        child = parts[i + 1].lower().rstrip("s")
+                        if (
+                            parent in model_names
+                            and child in model_names
+                            and model.name.lower() == child
+                        ):
                             rel = Relationship(
                                 type="manyToOne",
                                 target=model_names[parent],
                                 field=f"{parent}Id",
-                                foreign_key=f"{parent}Id"
+                                foreign_key=f"{parent}Id",
                             )
                             if rel not in relationships:
                                 relationships.append(rel)
@@ -219,18 +257,21 @@ class FrontendAnalyzer:
         """Detect project framework."""
         # Try package.json first
         pkg_path = self.root / "package.json"
-        
+
         if pkg_path.exists():
             try:
                 data = json.loads(pkg_path.read_text())
-                deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
-                
+                deps = {
+                    **data.get("dependencies", {}),
+                    **data.get("devDependencies", {}),
+                }
+
                 framework = self._check_framework_deps(deps)
                 if framework != FrameworkType.UNKNOWN:
                     return framework
             except Exception:
                 pass
-        
+
         # Fallback to package-lock.json
         lock_path = self.root / "package-lock.json"
         if lock_path.exists():
@@ -246,7 +287,7 @@ class FrontendAnalyzer:
                         deps.update(root_pkg["dependencies"])
                     if "devDependencies" in root_pkg:
                         deps.update(root_pkg["devDependencies"])
-                
+
                 framework = self._check_framework_deps(deps)
                 if framework != FrameworkType.UNKNOWN:
                     return framework
@@ -269,7 +310,7 @@ class FrontendAnalyzer:
                     pass
 
         return FrameworkType.UNKNOWN
-    
+
     def _check_framework_deps(self, deps: dict) -> FrameworkType:
         """Check framework from dependencies dict."""
         if "next" in deps:
@@ -286,7 +327,7 @@ class FrontendAnalyzer:
             return FrameworkType.REACT
         if "express" in deps:
             return FrameworkType.EXPRESS
-        
+
         return FrameworkType.UNKNOWN
 
 

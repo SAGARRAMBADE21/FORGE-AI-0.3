@@ -1,30 +1,40 @@
 """Main code agent combining all capabilities."""
 
 import asyncio
+import logging
 import time
 from pathlib import Path
 from typing import Callable
-import logging
 
-from core.types import (
-    Symbol, SymbolKind, Chunk, SearchQuery, SearchResponse,
-    NavRequest, Position, DefinitionResult, ReferenceResult,
-    CallHierarchyResult, HoverInfo, FrontendAnalysis, IndexStats
-)
-from config.settings import settings, Language
-from parsers.incremental_parser import get_parser
-from chunking.dynamic_chunker import get_chunker
-from embeddings.embedder import get_embedder
-from vectorstore.store import get_vectorstore
-from search.hybrid_search import HybridSearch
-from realtime.sync_manager import SyncManager
-from indexers.unified_indexer import UnifiedIndexer
-from navigation.definition_resolver import DefinitionResolver
-from navigation.reference_finder import ReferenceFinder
-from navigation.call_hierarchy import CallHierarchyAnalyzer
-from navigation.hover_provider import HoverProvider
 from analyzers.frontend_analyzer import FrontendAnalyzer
+from chunking.dynamic_chunker import get_chunker
+from config.settings import Language, settings
 from context.context_builder import ContextBuilder
+from core.types import (
+    CallHierarchyResult,
+    Chunk,
+    DefinitionResult,
+    FrontendAnalysis,
+    HoverInfo,
+    IndexStats,
+    NavRequest,
+    Position,
+    ReferenceResult,
+    SearchQuery,
+    SearchResponse,
+    Symbol,
+    SymbolKind,
+)
+from embeddings.embedder import get_embedder
+from indexers.unified_indexer import UnifiedIndexer
+from navigation.call_hierarchy import CallHierarchyAnalyzer
+from navigation.definition_resolver import DefinitionResolver
+from navigation.hover_provider import HoverProvider
+from navigation.reference_finder import ReferenceFinder
+from parsers.incremental_parser import get_parser
+from realtime.sync_manager import SyncManager
+from search.hybrid_search import HybridSearch
+from vectorstore.store import get_vectorstore
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +104,7 @@ class CodeAgent:
     async def initialize(
         self,
         progress: Callable[[str, str], None] | None = None,
-        force_reindex: bool = False
+        force_reindex: bool = False,
     ) -> IndexStats:
         """Initialize the agent."""
         start = time.time()
@@ -108,43 +118,49 @@ class CodeAgent:
         existing_chunks = self._vectorstore.count()
         if existing_chunks > 0 and not force_reindex:
             if progress:
-                progress("loading", f"Loading cached index ({existing_chunks} chunks)...")
-            
+                progress(
+                    "loading", f"Loading cached index ({existing_chunks} chunks)..."
+                )
+
             # Quick index for navigation only
             stats = await self._indexer.index_project(progress)
-            
+
             # Initialize search with vectorstore (no need to load all chunks)
             self._search = HybridSearch()
             self._search.vectorstore = self._vectorstore
-            
+
             # Initialize components without re-chunking/embedding
             self._def_resolver = DefinitionResolver(self._indexer)
             self._ref_finder = ReferenceFinder(self._indexer)
             self._call_hierarchy = CallHierarchyAnalyzer(self._indexer)
             self._hover = HoverProvider(self._indexer)
             self._context = ContextBuilder(self._indexer)
-            
+
             # Update stats with cached chunk count
             stats.total_chunks = existing_chunks
             stats.index_time_ms = (time.time() - start) * 1000
             self._initialized = True
-            
+
             if progress:
-                progress("complete", f"Loaded cached index in {stats.index_time_ms:.0f}ms!")
-            
-            logger.info(f"Loaded existing index: {existing_chunks} chunks in {stats.index_time_ms:.0f}ms")
+                progress(
+                    "complete", f"Loaded cached index in {stats.index_time_ms:.0f}ms!"
+                )
+
+            logger.info(
+                f"Loaded existing index: {existing_chunks} chunks in {stats.index_time_ms:.0f}ms"
+            )
             return stats
 
         # Full indexing path
         if progress:
             progress("indexing", "Indexing source files...")
-        
+
         stats = await self._indexer.index_project(progress)
 
         # 3. Create chunks
         if progress:
             progress("chunking", "Creating code chunks...")
-        
+
         chunk_start = time.time()
         self._chunks = await self._create_chunks()
         stats.total_chunks = len(self._chunks)
@@ -153,7 +169,7 @@ class CodeAgent:
         # 4. Embed chunks
         if progress:
             progress("embedding", "Generating embeddings...")
-        
+
         embed_start = time.time()
         self._chunks = await self._embedder.embed_chunks(self._chunks)
         await self._vectorstore.add_chunks(self._chunks)
@@ -194,8 +210,12 @@ class CodeAgent:
         contents = {}
 
         for file_info in self._indexer.file_index.all_files():
-            symbols_by_file[file_info.path] = self._indexer.get_file_symbols(file_info.path)
-            contents[file_info.path] = self._indexer.get_file_content(file_info.path) or ""
+            symbols_by_file[file_info.path] = self._indexer.get_file_symbols(
+                file_info.path
+            )
+            contents[file_info.path] = (
+                self._indexer.get_file_content(file_info.path) or ""
+            )
 
         self._chunker.build_graphs(symbols_by_file, contents)
         all_symbols = [s for syms in symbols_by_file.values() for s in syms]
@@ -224,11 +244,7 @@ class CodeAgent:
         if not settings.realtime.enabled:
             return
 
-        self._sync = SyncManager(
-            self.root,
-            self._update_file,
-            self._remove_file
-        )
+        self._sync = SyncManager(self.root, self._update_file, self._remove_file)
         await self._sync.start()
         logger.info("Started real-time watching")
 
@@ -291,18 +307,17 @@ class CodeAgent:
         query: str,
         top_k: int = 10,
         files: list[str] | None = None,
-        languages: list[Language] | None = None
+        languages: list[Language] | None = None,
     ) -> SearchResponse:
         """Search the codebase."""
         if not self._search:
             raise RuntimeError("Not initialized")
 
-        return await self._search.search(SearchQuery(
-            query=query,
-            top_k=top_k,
-            file_filter=files,
-            language_filter=languages
-        ))
+        return await self._search.search(
+            SearchQuery(
+                query=query, top_k=top_k, file_filter=files, language_filter=languages
+            )
+        )
 
     async def find_similar(self, file: str, line: int, top_k: int = 5) -> list[Chunk]:
         """Find code similar to chunk at location."""
@@ -322,23 +337,33 @@ class CodeAgent:
     # NAVIGATION
     # ═══════════════════════════════════════════════════════════════════════
 
-    async def go_to_definition(self, file: str, line: int, col: int) -> DefinitionResult:
+    async def go_to_definition(
+        self, file: str, line: int, col: int
+    ) -> DefinitionResult:
         """Go to definition."""
         if not self._def_resolver:
             raise RuntimeError("Not initialized")
-        return await self._def_resolver.get_definition(NavRequest(file, Position(line, col)))
+        return await self._def_resolver.get_definition(
+            NavRequest(file, Position(line, col))
+        )
 
     async def find_references(self, file: str, line: int, col: int) -> ReferenceResult:
         """Find all references."""
         if not self._ref_finder:
             raise RuntimeError("Not initialized")
-        return await self._ref_finder.find_references(NavRequest(file, Position(line, col)))
+        return await self._ref_finder.find_references(
+            NavRequest(file, Position(line, col))
+        )
 
-    async def get_call_hierarchy(self, file: str, line: int, col: int) -> CallHierarchyResult | None:
+    async def get_call_hierarchy(
+        self, file: str, line: int, col: int
+    ) -> CallHierarchyResult | None:
         """Get call hierarchy."""
         if not self._call_hierarchy:
             raise RuntimeError("Not initialized")
-        return await self._call_hierarchy.get_hierarchy(NavRequest(file, Position(line, col)))
+        return await self._call_hierarchy.get_hierarchy(
+            NavRequest(file, Position(line, col))
+        )
 
     async def get_hover(self, file: str, line: int, col: int) -> HoverInfo | None:
         """Get hover information."""
@@ -367,8 +392,7 @@ class CodeAgent:
     # ═══════════════════════════════════════════════════════════════════════
 
     async def analyze_frontend(
-        self,
-        progress: Callable[[str, str], None] | None = None
+        self, progress: Callable[[str, str], None] | None = None
     ) -> FrontendAnalysis:
         """Perform frontend analysis."""
         if self._analysis:
@@ -392,7 +416,7 @@ class CodeAgent:
         query: str,
         current_file: str | None = None,
         selection: tuple[int, int] | None = None,
-        top_k: int = 10
+        top_k: int = 10,
     ) -> str:
         """Build context for LLM query."""
         if not self._context:

@@ -5,16 +5,26 @@ import logging
 from pathlib import Path
 from typing import Callable
 
-from core.types import (
-    Symbol, SymbolKind, Chunk, SearchQuery, SearchResponse,
-    FrontendAnalysis, GenerationResult, IndexStats,
-    NavRequest, Position, DefinitionResult, ReferenceResult,
-    InferredModel, ApiResourceContract
-)
-from config.settings import Language
-from config.templates_config import TemplateConfig
 from agent import CodeAgent
 from backend_agent import BackendAgent
+from config.settings import Language
+from config.templates_config import TemplateConfig
+from core.types import (
+    ApiResourceContract,
+    Chunk,
+    DefinitionResult,
+    FrontendAnalysis,
+    GenerationResult,
+    IndexStats,
+    InferredModel,
+    NavRequest,
+    Position,
+    ReferenceResult,
+    SearchQuery,
+    SearchResponse,
+    Symbol,
+    SymbolKind,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +32,7 @@ logger = logging.getLogger(__name__)
 class FullStackAgent:
     """
     Unified agent for full-stack development.
-    
+
     Combines:
     - Code indexing and semantic search
     - Frontend analysis
@@ -32,16 +42,14 @@ class FullStackAgent:
     """
 
     def __init__(
-        self, 
-        project_root: str | Path,
-        backend_config: TemplateConfig | None = None
+        self, project_root: str | Path, backend_config: TemplateConfig | None = None
     ):
         self.root = Path(project_root)
-        
+
         # Initialize sub-agents
         self._code_agent = CodeAgent(project_root)
         self._backend_agent = BackendAgent(self.root, backend_config)
-        
+
         # State
         self._initialized = False
         self._watching = False
@@ -53,7 +61,7 @@ class FullStackAgent:
     async def initialize(
         self,
         progress: Callable[[str, str], None] | None = None,
-        force_reindex: bool = False
+        force_reindex: bool = False,
     ) -> IndexStats:
         """Initialize the full-stack agent."""
         # Skip if already initialized and not forcing reindex
@@ -62,7 +70,7 @@ class FullStackAgent:
                 progress("ready", "Using existing index")
             # Return cached stats
             return self._code_agent.indexer.get_stats()
-        
+
         # Initialize code agent (indexer)
         if progress:
             progress("indexing", "Initializing code indexer...")
@@ -73,10 +81,7 @@ class FullStackAgent:
         if progress:
             progress("backend", "Initializing backend agent...")
 
-        await self._backend_agent.initialize(
-            self._code_agent.indexer,
-            progress
-        )
+        await self._backend_agent.initialize(self._code_agent.indexer, progress)
 
         self._initialized = True
 
@@ -103,7 +108,7 @@ class FullStackAgent:
         query: str,
         top_k: int = 10,
         files: list[str] | None = None,
-        languages: list[Language] | None = None
+        languages: list[Language] | None = None,
     ) -> SearchResponse:
         """Semantic search over codebase."""
         return await self._code_agent.search(query, top_k, files, languages)
@@ -124,7 +129,9 @@ class FullStackAgent:
     # NAVIGATION
     # ═══════════════════════════════════════════════════════════════════════
 
-    async def go_to_definition(self, file: str, line: int, col: int) -> DefinitionResult:
+    async def go_to_definition(
+        self, file: str, line: int, col: int
+    ) -> DefinitionResult:
         """Go to definition."""
         return await self._code_agent.go_to_definition(file, line, col)
 
@@ -141,8 +148,7 @@ class FullStackAgent:
     # ═══════════════════════════════════════════════════════════════════════
 
     async def analyze_frontend(
-        self,
-        progress: Callable[[str, str], None] | None = None
+        self, progress: Callable[[str, str], None] | None = None
     ) -> FrontendAnalysis:
         """Analyze frontend code."""
         return await self._code_agent.analyze_frontend(progress)
@@ -152,8 +158,7 @@ class FullStackAgent:
     # ═══════════════════════════════════════════════════════════════════════
 
     async def generate_backend(
-        self,
-        progress: Callable[[str, str], None] | None = None
+        self, progress: Callable[[str, str], None] | None = None
     ) -> GenerationResult:
         """Generate complete backend from frontend analysis."""
         if not self._initialized:
@@ -165,7 +170,7 @@ class FullStackAgent:
         self,
         name: str,
         fields: list[dict],
-        progress: Callable[[str, str], None] | None = None
+        progress: Callable[[str, str], None] | None = None,
     ) -> GenerationResult:
         """Add a new model."""
         return await self._backend_agent.add_model(name, fields, progress)
@@ -175,14 +180,13 @@ class FullStackAgent:
         method: str,
         path: str,
         config: dict | None = None,
-        progress: Callable[[str, str], None] | None = None
+        progress: Callable[[str, str], None] | None = None,
     ) -> GenerationResult:
         """Add a new API endpoint."""
         return await self._backend_agent.add_endpoint(method, path, config, progress)
 
     async def sync_backend(
-        self,
-        progress: Callable[[str, str], None] | None = None
+        self, progress: Callable[[str, str], None] | None = None
     ) -> GenerationResult:
         """Sync backend with frontend changes."""
         return await self._backend_agent.sync_with_frontend(progress)
@@ -208,7 +212,7 @@ class FullStackAgent:
         """Background loop for auto-syncing backend."""
         while self._watching:
             await asyncio.sleep(30)  # Check every 30 seconds
-            
+
             try:
                 # Detect if frontend changed
                 # Could be smarter about detecting relevant changes
@@ -230,24 +234,22 @@ class FullStackAgent:
         query: str,
         current_file: str | None = None,
         include_backend: bool = True,
-        top_k: int = 10
+        top_k: int = 10,
     ) -> str:
         """Build context for LLM queries."""
         # Get code context
-        context = await self._code_agent.build_context(
-            query, current_file, top_k=top_k
-        )
+        context = await self._code_agent.build_context(query, current_file, top_k=top_k)
 
         # Add backend architecture context if available
         if include_backend and self._backend_agent.architecture:
             arch = self._backend_agent.architecture
-            
+
             backend_context = "\n\n## Backend Architecture\n"
-            
+
             if arch.models:
                 backend_context += "\n### Models\n"
                 for model in arch.models[:5]:
-                    fields = ', '.join(f.name for f in model.fields[:5])
+                    fields = ", ".join(f.name for f in model.fields[:5])
                     backend_context += f"- **{model.name}**: {fields}\n"
 
             if arch.api_resources:
@@ -284,14 +286,10 @@ class FullStackAgent:
     # CHAT INTERFACE
     # ═══════════════════════════════════════════════════════════════════════
 
-    async def chat(
-        self,
-        message: str,
-        current_file: str | None = None
-    ) -> dict:
+    async def chat(self, message: str, current_file: str | None = None) -> dict:
         """
         Process a chat message and return response with actions.
-        
+
         Returns:
             {
                 'response': str,
@@ -302,47 +300,49 @@ class FullStackAgent:
         # Determine intent
         intent = self._classify_intent(message)
 
-        if intent == 'search':
+        if intent == "search":
             results = await self.search(message, top_k=5)
             return {
-                'response': f"Found {results.total_count} results",
-                'actions': [{'type': 'show_results', 'data': results}],
-                'context_used': ''
+                "response": f"Found {results.total_count} results",
+                "actions": [{"type": "show_results", "data": results}],
+                "context_used": "",
             }
 
-        elif intent == 'generate':
+        elif intent == "generate":
             context = await self.build_context(message, current_file)
             return {
-                'response': "I can help generate code. Here's the relevant context.",
-                'actions': [{'type': 'suggest_generation', 'data': {}}],
-                'context_used': context
+                "response": "I can help generate code. Here's the relevant context.",
+                "actions": [{"type": "suggest_generation", "data": {}}],
+                "context_used": context,
             }
 
-        elif intent == 'explain':
+        elif intent == "explain":
             context = await self.build_context(message, current_file)
             return {
-                'response': "Here's the context for understanding this code.",
-                'actions': [],
-                'context_used': context
+                "response": "Here's the context for understanding this code.",
+                "actions": [],
+                "context_used": context,
             }
 
         else:
             context = await self.build_context(message, current_file)
             return {
-                'response': "I'll help with that.",
-                'actions': [],
-                'context_used': context
+                "response": "I'll help with that.",
+                "actions": [],
+                "context_used": context,
             }
 
     def _classify_intent(self, message: str) -> str:
         """Classify message intent."""
         message_lower = message.lower()
 
-        if any(word in message_lower for word in ['find', 'search', 'where', 'locate']):
-            return 'search'
-        elif any(word in message_lower for word in ['generate', 'create', 'add', 'make']):
-            return 'generate'
-        elif any(word in message_lower for word in ['explain', 'what', 'how', 'why']):
-            return 'explain'
+        if any(word in message_lower for word in ["find", "search", "where", "locate"]):
+            return "search"
+        elif any(
+            word in message_lower for word in ["generate", "create", "add", "make"]
+        ):
+            return "generate"
+        elif any(word in message_lower for word in ["explain", "what", "how", "why"]):
+            return "explain"
         else:
-            return 'general'
+            return "general"

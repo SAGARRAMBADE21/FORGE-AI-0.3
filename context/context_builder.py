@@ -1,11 +1,11 @@
 """Build context for LLM queries."""
 
 import logging
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
+from context.token_budgeter import TokenBudget, TokenBudgeter
 from core.types import Chunk, SearchResult
 from core.utils import count_tokens, truncate_tokens
-from context.token_budgeter import TokenBudgeter, TokenBudget
 from indexers.unified_indexer import UnifiedIndexer
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class ContextBuilder:
         query: str,
         search_results: list[SearchResult],
         current_file: str | None = None,
-        selection: tuple[int, int] | None = None
+        selection: tuple[int, int] | None = None,
     ) -> str:
         """Build context from search results and current file."""
         self._budgeter.reset()
@@ -32,7 +32,9 @@ class ContextBuilder:
 
         # 1. Search results
         search_budget = self._budgeter.get_allocation("search")
-        search_context = self._build_search_context(search_results, search_budget, seen_content)
+        search_context = self._build_search_context(
+            search_results, search_budget, seen_content
+        )
         if search_context:
             parts.append("## Relevant Code\n" + search_context)
             self._budgeter.allocate(search_context)
@@ -59,10 +61,7 @@ class ContextBuilder:
         return "\n\n".join(parts)
 
     def _build_search_context(
-        self, 
-        results: list[SearchResult], 
-        max_tokens: int,
-        seen: set
+        self, results: list[SearchResult], max_tokens: int, seen: set
     ) -> str:
         """Build context from search results."""
         parts = []
@@ -99,24 +98,21 @@ class ContextBuilder:
         return f"{header}\n```{chunk.language}\n{chunk.content}\n```"
 
     def _build_current_file_context(
-        self, 
-        file: str, 
-        selection: tuple[int, int] | None,
-        max_tokens: int
+        self, file: str, selection: tuple[int, int] | None, max_tokens: int
     ) -> str:
         """Build context from current file."""
         content = self._indexer.get_file_content(file)
         if not content:
             return ""
 
-        lines = content.split('\n')
+        lines = content.split("\n")
 
         if selection:
             start, end = selection
             # Include surrounding context
             context_start = max(0, start - 20)
             context_end = min(len(lines), end + 20)
-            focused = '\n'.join(lines[context_start:context_end])
+            focused = "\n".join(lines[context_start:context_end])
             return truncate_tokens(focused, max_tokens)
 
         # Return file summary with key symbols
@@ -132,15 +128,10 @@ class ContextBuilder:
             else:
                 parts.append(f"- {sym.kind.value}: {sym.name}")
 
-        summary = '\n'.join(parts)
+        summary = "\n".join(parts)
         return truncate_tokens(summary, max_tokens)
 
-    def _build_related_context(
-        self, 
-        file: str, 
-        max_tokens: int,
-        seen: set
-    ) -> str:
+    def _build_related_context(self, file: str, max_tokens: int, seen: set) -> str:
         """Build context from related files."""
         imports = self._indexer.dependency_graph.get_imports(file)
         parts = []
@@ -165,4 +156,4 @@ class ContextBuilder:
                         used_tokens += part_tokens
                     break
 
-        return '\n'.join(parts)
+        return "\n".join(parts)

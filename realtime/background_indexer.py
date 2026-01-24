@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
 from config.settings import settings
 
@@ -33,8 +33,7 @@ class BackgroundIndexer:
         while self._running:
             try:
                 priority, file_path = await asyncio.wait_for(
-                    self._queue.get(),
-                    timeout=1.0
+                    self._queue.get(), timeout=1.0
                 )
 
                 logger.debug(f"Worker {worker_id}: indexing {file_path}")

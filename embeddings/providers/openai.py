@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+
 import numpy as np
 
 from config.settings import settings
@@ -27,6 +28,7 @@ class OpenAIEmbedder:
     def client(self):
         if self._client is None:
             from openai import AsyncOpenAI
+
             self._client = AsyncOpenAI(api_key=self.api_key)
         return self._client
 
@@ -44,12 +46,10 @@ class OpenAIEmbedder:
 
         try:
             response = await self.client.embeddings.create(
-                model=self.model,
-                input=texts
+                model=self.model, input=texts
             )
             return [
-                np.array(item.embedding, dtype=np.float32)
-                for item in response.data
+                np.array(item.embedding, dtype=np.float32) for item in response.data
             ]
         except Exception as e:
             logger.error(f"OpenAI embedding error: {e}")

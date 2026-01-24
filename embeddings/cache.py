@@ -1,9 +1,10 @@
 """Persistent embedding cache."""
 
 import hashlib
-import numpy as np
-from pathlib import Path
 import logging
+from pathlib import Path
+
+import numpy as np
 
 from config.settings import settings
 
@@ -22,6 +23,7 @@ class EmbeddingCache:
         if self._enabled:
             try:
                 import diskcache
+
                 self._cache = diskcache.Cache(str(self.cache_dir / "embeddings"))
                 logger.info(f"Embedding cache initialized at {self.cache_dir}")
             except ImportError:

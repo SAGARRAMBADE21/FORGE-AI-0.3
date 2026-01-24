@@ -1,6 +1,7 @@
 """Index optimization utilities."""
 
 import logging
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,10 @@ class IndexOptimizer:
         """Cluster embeddings for faster search."""
         try:
             from sklearn.cluster import KMeans
-            kmeans = KMeans(n_clusters=min(n_clusters, len(embeddings)), random_state=42)
+
+            kmeans = KMeans(
+                n_clusters=min(n_clusters, len(embeddings)), random_state=42
+            )
             labels = kmeans.fit_predict(embeddings)
             centroids = kmeans.cluster_centers_
             return labels, centroids

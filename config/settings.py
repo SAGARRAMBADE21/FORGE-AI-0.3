@@ -1,9 +1,9 @@
 """Configuration settings."""
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from enum import Enum
 import os
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
 
 
 class Language(str, Enum):
@@ -35,7 +35,6 @@ class Language(str, Enum):
 class EmbeddingProvider(str, Enum):
     OPENAI = "openai"
     VOYAGE = "voyage"
-    LOCAL = "local"
 
 
 class VectorStoreBackend(str, Enum):
@@ -88,11 +87,29 @@ class ParserConfig:
     error_recovery: bool = True
     extract_comments: bool = True
     incremental: bool = True
-    skip_dirs: set[str] = field(default_factory=lambda: {
-        "node_modules", "__pycache__", ".git", "dist", "build",
-        ".next", ".nuxt", "coverage", ".venv", "venv", "env", "target",
-        "vendor", ".cache", "out", ".idea", ".vscode", "bin", "obj"
-    })
+    skip_dirs: set[str] = field(
+        default_factory=lambda: {
+            "node_modules",
+            "__pycache__",
+            ".git",
+            "dist",
+            "build",
+            ".next",
+            ".nuxt",
+            "coverage",
+            ".venv",
+            "venv",
+            "env",
+            "target",
+            "vendor",
+            ".cache",
+            "out",
+            ".idea",
+            ".vscode",
+            "bin",
+            "obj",
+        }
+    )
 
 
 @dataclass
@@ -109,29 +126,41 @@ class ChunkingConfig:
 
 @dataclass
 class EmbeddingConfig:
-    provider: EmbeddingProvider = EmbeddingProvider.LOCAL
+    provider: EmbeddingProvider = EmbeddingProvider.OPENAI
     openai_model: str = "text-embedding-3-small"
     openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
-    voyage_model: str = "voyage-code-2"
+    voyage_model: str = "voyage-code-3"
     voyage_api_key: str = field(default_factory=lambda: os.getenv("VOYAGE_API_KEY", ""))
-    local_model: str = "all-MiniLM-L6-v2"
+
     batch_size: int = 100
     cache_enabled: bool = True
-    cache_dir: Path = field(default_factory=lambda: Path.home() / ".code_indexer" / "cache")
+    cache_dir: Path = field(
+        default_factory=lambda: Path.home() / ".code_indexer" / "cache"
+    )
     query_prefix: str = "Query: "
     doc_prefix: str = ""
 
 
 @dataclass
 class VectorStoreConfig:
-    backend: VectorStoreBackend = VectorStoreBackend.CHROMADB  # Changed from MONGODB to CHROMADB for local storage
-    persist_dir: Path = field(default_factory=lambda: Path.home() / ".code_indexer" / "vectorstore")
+    backend: VectorStoreBackend = (
+        VectorStoreBackend.CHROMADB
+    )  # Changed from MONGODB to CHROMADB for local storage
+    persist_dir: Path = field(
+        default_factory=lambda: Path.home() / ".code_indexer" / "vectorstore"
+    )
     collection: str = "code_chunks"
     # MongoDB Atlas specific settings
     mongodb_uri: str = field(default_factory=lambda: os.getenv("MONGODB_URI", ""))
-    mongodb_database: str = field(default_factory=lambda: os.getenv("MONGODB_DATABASE", "code_indexer"))
-    mongodb_collection: str = field(default_factory=lambda: os.getenv("MONGODB_COLLECTION", "code_chunks"))
-    mongodb_index: str = field(default_factory=lambda: os.getenv("MONGODB_INDEX", "vector_index"))
+    mongodb_database: str = field(
+        default_factory=lambda: os.getenv("MONGODB_DATABASE", "code_indexer")
+    )
+    mongodb_collection: str = field(
+        default_factory=lambda: os.getenv("MONGODB_COLLECTION", "code_chunks")
+    )
+    mongodb_index: str = field(
+        default_factory=lambda: os.getenv("MONGODB_INDEX", "vector_index")
+    )
 
 
 @dataclass
@@ -156,25 +185,62 @@ class RealtimeConfig:
 
 
 @dataclass
+class OptimizationConfig:
+    """Configuration for FORGE optimizations."""
+
+    # Caching
+    enable_cache: bool = True
+    cache_ttl_hours: float = 24.0
+
+    # Cost tracking
+    enable_cost_tracking: bool = True
+    session_limit_usd: float = 10.0
+    lifetime_limit_usd: float = 100.0
+
+    # Prompt optimization
+    enable_prompt_optimization: bool = True
+    aggressive_optimization: bool = False
+
+    # Performance
+    lightweight_mode: bool = field(
+        default_factory=lambda: os.getenv("FORGE_LIGHTWEIGHT", "").lower()
+        in ("true", "1", "yes")
+    )
+    lazy_load_models: bool = True
+
+
+@dataclass
 class LLMConfig:
     """Configuration for LLM-based code generation"""
+
     # Backend generation (optimized for code generation)
-    backend_provider: str = "openrouter"
-    backend_model: str = "meta-llama/llama-3.3-70b-instruct"
-    backend_max_tokens: int = 8192
+    backend_provider: str = "openai"
+    backend_model: str = "gpt-4.1-mini"
+    backend_max_tokens: int = 16384  # GPT-4.1-mini supports up to 1M context
     backend_temperature: float = 0.1
-    
+
     # Frontend generation (if different)
-    frontend_provider: str = "openrouter"
-    frontend_model: str = "meta-llama/llama-3.3-70b-instruct"
-    frontend_max_tokens: int = 4096
+    frontend_provider: str = "openai"
+    frontend_model: str = "gpt-4.1-mini"
+    frontend_max_tokens: int = 16384
     frontend_temperature: float = 0.1
-    
+
+    # Smart routing - use cheaper models for simple tasks
+    simple_task_provider: str = "groq"
+    simple_task_model: str = "llama-3.1-8b-instant"
+
     # API keys from environment
-    openrouter_api_key: str = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
+    gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
+    openrouter_api_key: str = field(
+        default_factory=lambda: os.getenv("OPENROUTER_API_KEY", "")
+    )
     openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
-    anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
-    huggingface_api_key: str = field(default_factory=lambda: os.getenv("HUGGINGFACE_API_KEY", ""))
+    anthropic_api_key: str = field(
+        default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", "")
+    )
+    huggingface_api_key: str = field(
+        default_factory=lambda: os.getenv("HUGGINGFACE_API_KEY", "")
+    )
     groq_api_key: str = field(default_factory=lambda: os.getenv("GROQ_API_KEY", ""))
 
 
@@ -187,6 +253,7 @@ class Settings:
     search: SearchConfig = field(default_factory=SearchConfig)
     realtime: RealtimeConfig = field(default_factory=RealtimeConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
+    optimization: OptimizationConfig = field(default_factory=OptimizationConfig)
     debug: bool = False
 
 

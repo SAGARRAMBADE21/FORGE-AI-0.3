@@ -2,8 +2,9 @@
 
 import asyncio
 import logging
-import numpy as np
+
 import httpx
+import numpy as np
 
 from config.settings import settings
 
@@ -15,6 +16,7 @@ class VoyageEmbedder:
 
     DIMENSIONS = {
         "voyage-code-2": 1536,
+        "voyage-code-3": 1024,
         "voyage-2": 1024,
         "voyage-large-2": 1536,
     }
@@ -32,7 +34,9 @@ class VoyageEmbedder:
         embeddings = await self.embed_texts([text])
         return embeddings[0]
 
-    async def embed_texts(self, texts: list[str], input_type: str = "document") -> list[np.ndarray]:
+    async def embed_texts(
+        self, texts: list[str], input_type: str = "document"
+    ) -> list[np.ndarray]:
         if not texts:
             return []
 
@@ -42,14 +46,14 @@ class VoyageEmbedder:
                     f"{self._base_url}/embeddings",
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
                     },
                     json={
                         "model": self.model,
                         "input": texts,
-                        "input_type": input_type
+                        "input_type": input_type,
                     },
-                    timeout=60.0
+                    timeout=60.0,
                 )
                 response.raise_for_status()
                 data = response.json()

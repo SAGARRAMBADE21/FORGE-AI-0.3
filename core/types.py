@@ -1,17 +1,20 @@
 """Extended type definitions for full-stack generation."""
 
 from dataclasses import dataclass, field
-from enum import Enum
 from datetime import datetime
+from enum import Enum
 from typing import Any
+
 import numpy as np
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CORE TYPES (Part 1)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class SymbolKind(str, Enum):
     """Kind of code symbol."""
+
     FUNCTION = "function"
     METHOD = "method"
     CLASS = "class"
@@ -36,6 +39,7 @@ class SymbolKind(str, Enum):
 @dataclass
 class Position:
     """Position in source code."""
+
     line: int
     column: int
 
@@ -43,9 +47,10 @@ class Position:
 @dataclass
 class Range:
     """Range in source code."""
+
     start: Position
     end: Position
-    
+
     def contains(self, position: Position) -> bool:
         """Check if this range contains the given position."""
         if self.start.line < position.line < self.end.line:
@@ -57,7 +62,7 @@ class Range:
         if self.end.line == position.line:
             return position.column <= self.end.column
         return False
-    
+
     @property
     def lines(self) -> int:
         """Number of lines in this range."""
@@ -67,6 +72,7 @@ class Range:
 @dataclass
 class Symbol:
     """Code symbol with metadata."""
+
     name: str
     kind: SymbolKind
     file: str
@@ -77,105 +83,107 @@ class Symbol:
     references: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
-    
+
     # Backward compatibility properties for accessing metadata
     @property
     def id(self) -> str:
-        return self.metadata.get('id', f"{self.file}:{self.name}")
-    
+        return self.metadata.get("id", f"{self.file}:{self.name}")
+
     @property
     def qualified_name(self) -> str:
-        return self.metadata.get('qualified_name', f"{self.file}:{self.name}")
-    
+        return self.metadata.get("qualified_name", f"{self.file}:{self.name}")
+
     @property
     def selection_range(self):
-        return self.metadata.get('selection_range', self.range)
-    
+        return self.metadata.get("selection_range", self.range)
+
     @property
     def source(self) -> str:
-        return self.metadata.get('source', self.signature)
-    
+        return self.metadata.get("source", self.signature)
+
     @property
     def language(self):
         from config.settings import Language
-        return self.metadata.get('language', Language.PYTHON)
-    
+
+        return self.metadata.get("language", Language.PYTHON)
+
     @property
     def type_annotation(self) -> str | None:
-        return self.metadata.get('type_annotation')
-    
+        return self.metadata.get("type_annotation")
+
     @property
     def return_type(self) -> str | None:
-        return self.metadata.get('return_type')
-    
+        return self.metadata.get("return_type")
+
     @return_type.setter
     def return_type(self, value: str | None):
-        self.metadata['return_type'] = value
-    
+        self.metadata["return_type"] = value
+
     @property
     def parameters(self) -> list:
-        return self.metadata.get('parameters', [])
-    
+        return self.metadata.get("parameters", [])
+
     @parameters.setter
     def parameters(self, value: list):
-        self.metadata['parameters'] = value
-    
+        self.metadata["parameters"] = value
+
     @property
     def bases(self) -> list:
-        return self.metadata.get('bases', [])
-    
+        return self.metadata.get("bases", [])
+
     @property
     def interfaces(self) -> list:
-        return self.metadata.get('interfaces', [])
-    
+        return self.metadata.get("interfaces", [])
+
     @property
     def comments(self) -> list:
-        return self.metadata.get('comments', [])
-    
+        return self.metadata.get("comments", [])
+
     @property
     def docstring(self) -> str:
         return self.doc
-    
+
     @docstring.setter
     def docstring(self, value: str):
         self.doc = value
-    
+
     @property
     def decorators(self) -> list:
-        return self.metadata.get('decorators', [])
-    
+        return self.metadata.get("decorators", [])
+
     @decorators.setter
     def decorators(self, value: list):
-        self.metadata['decorators'] = value
-    
+        self.metadata["decorators"] = value
+
     @property
     def is_async(self) -> bool:
-        return self.metadata.get('is_async', False)
-    
+        return self.metadata.get("is_async", False)
+
     @is_async.setter
     def is_async(self, value: bool):
-        self.metadata['is_async'] = value
-    
+        self.metadata["is_async"] = value
+
     @property
     def is_exported(self) -> bool:
-        return self.metadata.get('is_exported', False)
-    
+        return self.metadata.get("is_exported", False)
+
     @is_exported.setter
     def is_exported(self, value: bool):
-        self.metadata['is_exported'] = value
-    
+        self.metadata["is_exported"] = value
+
     @property
     def parent_id(self) -> str | None:
-        return self.metadata.get('parent_id')
-    
+        return self.metadata.get("parent_id")
+
     @property
     def parent_name(self) -> str | None:
-        return self.metadata.get('parent_name')
+        return self.metadata.get("parent_name")
 
 
 @dataclass
 class Chunk:
     """Semantic code chunk."""
+
     id: str
     content: str
     file: str
@@ -188,60 +196,60 @@ class Chunk:
     context: str = ""
     embedding: np.ndarray | None = None
     metadata: dict = field(default_factory=dict)
-    
+
     # Backward compatibility properties
     @property
     def tokens(self) -> int:
-        return self.metadata.get('tokens', 0)
-    
+        return self.metadata.get("tokens", 0)
+
     @tokens.setter
     def tokens(self, value: int):
-        self.metadata['tokens'] = value
-    
+        self.metadata["tokens"] = value
+
     @property
     def keywords(self) -> list:
-        return self.metadata.get('keywords', [])
-    
+        return self.metadata.get("keywords", [])
+
     @keywords.setter
     def keywords(self, value: list):
-        self.metadata['keywords'] = value
-    
+        self.metadata["keywords"] = value
+
     @property
     def file_context(self) -> str:
-        return self.metadata.get('file_context', '')
-    
+        return self.metadata.get("file_context", "")
+
     @file_context.setter
     def file_context(self, value: str):
-        self.metadata['file_context'] = value
-    
+        self.metadata["file_context"] = value
+
     @property
     def symbol_id(self) -> str | None:
-        return self.metadata.get('symbol_id')
-    
+        return self.metadata.get("symbol_id")
+
     @property
     def symbol_name(self) -> str | None:
-        return self.metadata.get('symbol_name')
-    
+        return self.metadata.get("symbol_name")
+
     @property
     def symbol_kind(self):
-        return self.metadata.get('symbol_kind')
-    
+        return self.metadata.get("symbol_kind")
+
     @property
     def parent_context(self) -> str:
-        return self.metadata.get('parent_context', '')
-    
+        return self.metadata.get("parent_context", "")
+
     @property
     def imports(self) -> list:
-        return self.metadata.get('imports', [])
-    
+        return self.metadata.get("imports", [])
+
     @property
     def semantic_tags(self) -> list:
-        return self.metadata.get('semantic_tags', [])
-    
+        return self.metadata.get("semantic_tags", [])
+
     @property
     def weighted_keywords(self) -> dict:
-        return self.metadata.get('weighted_keywords', {})
-    
+        return self.metadata.get("weighted_keywords", {})
+
     def to_embedding_text(self) -> str:
         """Convert chunk to text for embedding."""
         parts = []
@@ -258,6 +266,7 @@ class Chunk:
 @dataclass
 class SearchQuery:
     """Search query parameters."""
+
     query: str
     top_k: int = 10
     file_filter: list[str] | None = None
@@ -270,6 +279,7 @@ class SearchQuery:
 @dataclass
 class SearchResult:
     """Single search result."""
+
     chunk: Chunk
     score: float
     highlights: list[str] = field(default_factory=list)
@@ -278,6 +288,7 @@ class SearchResult:
 @dataclass
 class SearchResponse:
     """Search response with results."""
+
     query: str
     results: list[SearchResult] = field(default_factory=list)
     total_count: int = 0
@@ -287,6 +298,7 @@ class SearchResponse:
 @dataclass
 class NavRequest:
     """Navigation request."""
+
     file: str
     position: Position
     include_references: bool = True
@@ -295,6 +307,7 @@ class NavRequest:
 @dataclass
 class DefinitionResult:
     """Definition lookup result."""
+
     symbol: Symbol | None = None
     definitions: list[Symbol] = field(default_factory=list)
 
@@ -302,6 +315,7 @@ class DefinitionResult:
 @dataclass
 class ReferenceResult:
     """Reference lookup result."""
+
     symbol: Symbol | None = None
     references: list["Reference"] = field(default_factory=list)
 
@@ -309,6 +323,7 @@ class ReferenceResult:
 @dataclass
 class CallHierarchyItem:
     """Call hierarchy item."""
+
     symbol: Symbol
     incoming: list["CallHierarchyItem"] = field(default_factory=list)
     outgoing: list["CallHierarchyItem"] = field(default_factory=list)
@@ -317,12 +332,14 @@ class CallHierarchyItem:
 @dataclass
 class CallHierarchyResult:
     """Call hierarchy result."""
+
     root: CallHierarchyItem | None = None
 
 
 @dataclass
 class HoverInfo:
     """Hover information."""
+
     symbol: Symbol | None = None
     documentation: str = ""
     signature: str = ""
@@ -332,6 +349,7 @@ class HoverInfo:
 @dataclass
 class ComponentInfo:
     """Frontend component information."""
+
     name: str
     file: str
     id: str = ""
@@ -349,6 +367,7 @@ class ComponentInfo:
 @dataclass
 class FormInfo:
     """Form information."""
+
     file: str
     name: str = ""
     id: str = ""
@@ -363,6 +382,7 @@ class FormInfo:
 @dataclass
 class ApiCallInfo:
     """API call information."""
+
     method: str
     endpoint: str
     file: str
@@ -374,6 +394,7 @@ class ApiCallInfo:
 @dataclass
 class FrontendAnalysis:
     """Complete frontend analysis."""
+
     project: str = ""
     framework: Any = None
     language: Any = None
@@ -390,6 +411,7 @@ class FrontendAnalysis:
 @dataclass
 class IndexStats:
     """Indexing statistics."""
+
     total_files: int = 0
     total_chunks: int = 0
     total_symbols: int = 0
@@ -402,8 +424,10 @@ class IndexStats:
 # ADDITIONAL CORE TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class ChunkType(str, Enum):
     """Type of code chunk."""
+
     FUNCTION = "function"
     CLASS = "class"
     METHOD = "method"
@@ -424,6 +448,7 @@ class ChunkType(str, Enum):
 @dataclass
 class Parameter:
     """Function/method parameter."""
+
     name: str
     param_type: str = ""
     default: str | None = None
@@ -433,6 +458,7 @@ class Parameter:
 @dataclass
 class Comment:
     """Code comment."""
+
     content: str
     range: Range
     kind: str = "line"  # line, block, doc
@@ -441,6 +467,7 @@ class Comment:
 @dataclass
 class Docstring:
     """Documentation string."""
+
     content: str
     range: Range
     format: str = "plain"  # plain, jsdoc, sphinx, google
@@ -453,6 +480,7 @@ class Docstring:
 @dataclass
 class ParseError:
     """Parse error information."""
+
     message: str
     range: Range
     file: str = ""
@@ -463,6 +491,7 @@ class ParseError:
 @dataclass
 class CrossFileContext:
     """Cross-file context information."""
+
     file: str
     symbols: list[str] = field(default_factory=list)
     imports: list[str] = field(default_factory=list)
@@ -472,6 +501,7 @@ class CrossFileContext:
 
 class ReferenceKind(str, Enum):
     """Kind of reference."""
+
     READ = "read"
     WRITE = "write"
     CALL = "call"
@@ -482,6 +512,7 @@ class ReferenceKind(str, Enum):
 
 class HTTPMethod(str, Enum):
     """HTTP method types."""
+
     GET = "GET"
     POST = "POST"
     PUT = "PUT"
@@ -493,6 +524,7 @@ class HTTPMethod(str, Enum):
 
 class AuthType(str, Enum):
     """Authentication type."""
+
     NONE = "none"
     BASIC = "basic"
     BEARER = "bearer"
@@ -504,6 +536,7 @@ class AuthType(str, Enum):
 
 class FrameworkType(str, Enum):
     """Frontend framework type."""
+
     REACT = "react"
     VUE = "vue"
     ANGULAR = "angular"
@@ -517,6 +550,7 @@ class FrameworkType(str, Enum):
 @dataclass
 class Location:
     """Source code location."""
+
     file: str
     range: Range
 
@@ -524,6 +558,7 @@ class Location:
 @dataclass
 class LocationLink:
     """Link to a location in source code."""
+
     target_uri: str
     target_range: Range
     target_selection_range: Range
@@ -533,6 +568,7 @@ class LocationLink:
 @dataclass
 class Reference:
     """Code reference."""
+
     symbol: str
     location: Location
     kind: ReferenceKind = ReferenceKind.READ
@@ -542,6 +578,7 @@ class Reference:
 @dataclass
 class IncomingCall:
     """Incoming call in call hierarchy."""
+
     from_symbol: Symbol
     from_ranges: list[Range] = field(default_factory=list)
 
@@ -549,6 +586,7 @@ class IncomingCall:
 @dataclass
 class OutgoingCall:
     """Outgoing call in call hierarchy."""
+
     to_symbol: Symbol
     from_ranges: list[Range] = field(default_factory=list)
 
@@ -556,6 +594,7 @@ class OutgoingCall:
 @dataclass
 class FileInfo:
     """File information."""
+
     path: str
     language: str
     size: int = 0
@@ -570,6 +609,7 @@ class FileInfo:
 @dataclass
 class FieldInfo:
     """Field information for models/forms."""
+
     name: str
     field_type: str
     required: bool = False
@@ -586,6 +626,7 @@ class FieldInfo:
 @dataclass
 class FormField:
     """Form field definition."""
+
     name: str
     field_type: str
     label: str = ""
@@ -601,6 +642,7 @@ class FormField:
 @dataclass
 class DataModel:
     """Data model representation."""
+
     name: str
     fields: list[FieldInfo] = field(default_factory=list)
     id: str = ""
@@ -613,6 +655,7 @@ class DataModel:
 @dataclass
 class APICall:
     """API call representation."""
+
     method: HTTPMethod
     endpoint: str
     file: str
@@ -631,6 +674,7 @@ class APICall:
 @dataclass
 class AuthPattern:
     """Authentication pattern."""
+
     type: AuthType
     auth_type: AuthType | None = None
     storage: str | None = None
@@ -647,6 +691,7 @@ class AuthPattern:
 @dataclass
 class Relationship:
     """Model relationship."""
+
     source: str = ""
     target: str = ""
     type: str = ""
@@ -659,6 +704,7 @@ class Relationship:
 @dataclass
 class RouteInfo:
     """Route information."""
+
     path: str
     component: str
     file: str
@@ -673,8 +719,10 @@ class RouteInfo:
 # NEW: INFERENCE TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class EvidenceSource(str, Enum):
     """Source of inference evidence."""
+
     TYPESCRIPT_TYPE = "typescript_type"
     ZOD_SCHEMA = "zod_schema"
     API_RESPONSE = "api_response"
@@ -686,6 +734,7 @@ class EvidenceSource(str, Enum):
 
 class InferredRelationType(str, Enum):
     """Type of relationship between models."""
+
     ONE_TO_ONE = "one_to_one"
     ONE_TO_MANY = "one_to_many"
     MANY_TO_ONE = "many_to_one"
@@ -695,6 +744,7 @@ class InferredRelationType(str, Enum):
 
 class InferredFieldType(str, Enum):
     """Database field type."""
+
     STRING = "string"
     TEXT = "text"
     INTEGER = "integer"
@@ -712,6 +762,7 @@ class InferredFieldType(str, Enum):
 @dataclass
 class Evidence:
     """Evidence for inference."""
+
     source: EvidenceSource
     file: str
     line: int
@@ -723,6 +774,7 @@ class Evidence:
 @dataclass
 class InferredField:
     """Inferred model field."""
+
     name: str
     field_type: InferredFieldType
     nullable: bool = False
@@ -739,6 +791,7 @@ class InferredField:
 @dataclass
 class InferredModel:
     """Inferred data model."""
+
     name: str
     fields: list[InferredField] = field(default_factory=list)
     primary_key: str = "id"
@@ -753,6 +806,7 @@ class InferredModel:
 @dataclass
 class InferredRelation:
     """Inferred relationship."""
+
     source_model: str
     target_model: str
     relation_type: InferredRelationType
@@ -767,9 +821,11 @@ class InferredRelation:
 # NEW: API CONTRACT TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class PathParam:
     """API path parameter."""
+
     name: str
     param_type: str = "string"
     required: bool = True
@@ -778,6 +834,7 @@ class PathParam:
 @dataclass
 class QueryParam:
     """API query parameter."""
+
     name: str
     param_type: str = "string"
     required: bool = False
@@ -787,6 +844,7 @@ class QueryParam:
 @dataclass
 class RequestBodySchema:
     """Request body schema."""
+
     content_type: str = "application/json"
     schema: dict = field(default_factory=dict)
     required: bool = True
@@ -795,6 +853,7 @@ class RequestBodySchema:
 @dataclass
 class ResponseSchema:
     """Response schema."""
+
     status_code: int
     content_type: str = "application/json"
     schema: dict = field(default_factory=dict)
@@ -804,6 +863,7 @@ class ResponseSchema:
 @dataclass
 class ApiEndpointContract:
     """Synthesized API endpoint."""
+
     id: str
     method: str
     path: str
@@ -823,6 +883,7 @@ class ApiEndpointContract:
 @dataclass
 class ApiResourceContract:
     """Group of related endpoints."""
+
     name: str
     base_path: str
     endpoints: list[ApiEndpointContract] = field(default_factory=list)
@@ -834,8 +895,10 @@ class ApiResourceContract:
 # NEW: AUTH TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class AuthStrategy(str, Enum):
     """Authentication strategy."""
+
     JWT = "jwt"
     SESSION = "session"
     OAUTH = "oauth"
@@ -845,6 +908,7 @@ class AuthStrategy(str, Enum):
 
 class PermissionModel(str, Enum):
     """Permission model type."""
+
     RBAC = "rbac"
     ABAC = "abac"
     SIMPLE = "simple"
@@ -853,6 +917,7 @@ class PermissionModel(str, Enum):
 @dataclass
 class RoleDefinition:
     """Role definition."""
+
     name: str
     permissions: list[str] = field(default_factory=list)
     inherits: list[str] = field(default_factory=list)
@@ -861,6 +926,7 @@ class RoleDefinition:
 @dataclass
 class PermissionDefinition:
     """Permission definition."""
+
     name: str
     resource: str
     actions: list[str] = field(default_factory=list)
@@ -869,6 +935,7 @@ class PermissionDefinition:
 @dataclass
 class OAuthProviderConfig:
     """OAuth provider configuration."""
+
     name: str
     client_id_env: str
     client_secret_env: str
@@ -878,6 +945,7 @@ class OAuthProviderConfig:
 @dataclass
 class AuthRequirements:
     """Inferred auth requirements."""
+
     strategy: AuthStrategy
     permission_model: PermissionModel
     roles: list[RoleDefinition] = field(default_factory=list)
@@ -893,9 +961,11 @@ class AuthRequirements:
 # NEW: SCHEMA DESIGN TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class DatabaseColumn:
     """Database column definition."""
+
     name: str
     db_type: str
     nullable: bool = False
@@ -908,6 +978,7 @@ class DatabaseColumn:
 @dataclass
 class DatabaseIndex:
     """Database index definition."""
+
     name: str
     columns: list[str]
     unique: bool = False
@@ -917,6 +988,7 @@ class DatabaseIndex:
 @dataclass
 class DatabaseTable:
     """Database table definition."""
+
     name: str
     columns: list[DatabaseColumn] = field(default_factory=list)
     indexes: list[DatabaseIndex] = field(default_factory=list)
@@ -927,6 +999,7 @@ class DatabaseTable:
 @dataclass
 class DatabaseSchema:
     """Complete database schema."""
+
     tables: list[DatabaseTable] = field(default_factory=list)
     enums: dict[str, list[str]] = field(default_factory=dict)
 
@@ -934,6 +1007,7 @@ class DatabaseSchema:
 @dataclass
 class Migration:
     """Database migration."""
+
     id: str
     name: str
     up_sql: str
@@ -945,9 +1019,11 @@ class Migration:
 # NEW: SERVICE ARCHITECTURE TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class RepositoryMethod:
     """Repository method definition."""
+
     name: str
     return_type: str
     parameters: list[dict] = field(default_factory=list)
@@ -957,6 +1033,7 @@ class RepositoryMethod:
 @dataclass
 class RepositoryDefinition:
     """Repository definition."""
+
     name: str
     model: str
     methods: list[RepositoryMethod] = field(default_factory=list)
@@ -965,6 +1042,7 @@ class RepositoryDefinition:
 @dataclass
 class ServiceMethod:
     """Service method definition."""
+
     name: str
     return_type: str
     parameters: list[dict] = field(default_factory=list)
@@ -976,6 +1054,7 @@ class ServiceMethod:
 @dataclass
 class ServiceDefinition:
     """Service definition."""
+
     name: str
     dependencies: list[str] = field(default_factory=list)
     methods: list[ServiceMethod] = field(default_factory=list)
@@ -985,8 +1064,10 @@ class ServiceDefinition:
 # NEW: EXECUTION TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class ChangeType(str, Enum):
     """File change type."""
+
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
@@ -996,6 +1077,7 @@ class ChangeType(str, Enum):
 @dataclass
 class FileChange:
     """File change."""
+
     change_type: ChangeType
     path: str
     content: str | None = None
@@ -1006,6 +1088,7 @@ class FileChange:
 @dataclass
 class ChangeSet:
     """Set of atomic changes."""
+
     id: str
     description: str
     changes: list[FileChange] = field(default_factory=list)
@@ -1016,6 +1099,7 @@ class ChangeSet:
 @dataclass
 class ValidationResult:
     """Validation result."""
+
     valid: bool
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -1025,8 +1109,10 @@ class ValidationResult:
 # NEW: ORCHESTRATION TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TaskType(str, Enum):
     """Task type."""
+
     GENERATE_BACKEND = "generate_backend"
     ADD_ENDPOINT = "add_endpoint"
     ADD_MODEL = "add_model"
@@ -1038,6 +1124,7 @@ class TaskType(str, Enum):
 
 class TaskStatus(str, Enum):
     """Task status."""
+
     PENDING = "pending"
     PLANNING = "planning"
     EXECUTING = "executing"
@@ -1050,6 +1137,7 @@ class TaskStatus(str, Enum):
 @dataclass
 class TaskStep:
     """Task step."""
+
     id: str
     name: str
     description: str
@@ -1065,6 +1153,7 @@ class TaskStep:
 @dataclass
 class TaskPlan:
     """Task execution plan."""
+
     id: str
     task_type: TaskType
     description: str
@@ -1078,6 +1167,7 @@ class TaskPlan:
 @dataclass
 class Checkpoint:
     """Rollback checkpoint."""
+
     id: str
     task_id: str
     step_id: str
@@ -1088,6 +1178,7 @@ class Checkpoint:
 @dataclass
 class AgentSession:
     """Agent session."""
+
     id: str
     project_path: str
     current_task: TaskPlan | None = None
@@ -1100,9 +1191,11 @@ class AgentSession:
 # NEW: GENERATION OUTPUT TYPES
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class GeneratedFile:
     """Generated file."""
+
     path: str
     content: str
     file_type: str
@@ -1113,6 +1206,7 @@ class GeneratedFile:
 @dataclass
 class GenerationResult:
     """Result of code generation."""
+
     success: bool
     files: list[GeneratedFile] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -1123,6 +1217,7 @@ class GenerationResult:
 @dataclass
 class BackendArchitecture:
     """Complete backend architecture."""
+
     models: list[InferredModel] = field(default_factory=list)
     relations: list[InferredRelation] = field(default_factory=list)
     api_resources: list[ApiResourceContract] = field(default_factory=list)

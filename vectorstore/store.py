@@ -1,10 +1,11 @@
 """Unified vector store interface."""
 
 import logging
+
 import numpy as np
 
+from config.settings import VectorStoreBackend, settings
 from core.types import Chunk
-from config.settings import settings, VectorStoreBackend
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +25,19 @@ class VectorStore:
 
         if backend_type == VectorStoreBackend.CHROMADB:
             from vectorstore.backends.chromadb import ChromaDBBackend
+
             self._backend = ChromaDBBackend()
         elif backend_type == VectorStoreBackend.QDRANT:
             from vectorstore.backends.qdrant import QdrantBackend
+
             self._backend = QdrantBackend()
         elif backend_type == VectorStoreBackend.MONGODB:
             from vectorstore.backends.mongodb import MongoDBBackend
+
             self._backend = MongoDBBackend()
         else:
             from vectorstore.backends.memory import MemoryBackend
+
             self._backend = MemoryBackend()
 
         await self._backend.initialize()
@@ -45,10 +50,7 @@ class VectorStore:
         await self._backend.add_chunks(chunks)
 
     async def search(
-        self,
-        query_embedding: np.ndarray,
-        top_k: int = 10,
-        filters: dict | None = None
+        self, query_embedding: np.ndarray, top_k: int = 10, filters: dict | None = None
     ) -> list[tuple[Chunk, float]]:
         if not self._initialized:
             await self.initialize()
@@ -59,7 +61,7 @@ class VectorStore:
             await self._backend.delete_file(file)
 
     async def delete_chunks(self, ids: list[str]):
-        if self._initialized and hasattr(self._backend, 'delete_chunks'):
+        if self._initialized and hasattr(self._backend, "delete_chunks"):
             await self._backend.delete_chunks(ids)
 
     async def clear(self):
@@ -73,12 +75,12 @@ class VectorStore:
         """Get all chunks from the vector store."""
         if not self._initialized:
             await self.initialize()
-        if self._backend and hasattr(self._backend, 'get_all_chunks'):
+        if self._backend and hasattr(self._backend, "get_all_chunks"):
             return await self._backend.get_all_chunks()
         return []
 
     def get_chunk(self, chunk_id: str) -> Chunk | None:
-        if self._backend and hasattr(self._backend, 'get_chunk'):
+        if self._backend and hasattr(self._backend, "get_chunk"):
             return self._backend.get_chunk(chunk_id)
         return None
 

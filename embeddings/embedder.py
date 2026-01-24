@@ -2,10 +2,11 @@
 
 import asyncio
 import logging
+
 import numpy as np
 
+from config.settings import EmbeddingProvider, settings
 from core.types import Chunk
-from config.settings import settings, EmbeddingProvider
 from embeddings.cache import EmbeddingCache
 from embeddings.query_optimizer import QueryOptimizer
 
@@ -44,15 +45,14 @@ class Embedder:
 
         if provider_type == EmbeddingProvider.OPENAI:
             from embeddings.providers.openai import OpenAIEmbedder
+
             return OpenAIEmbedder()
         elif provider_type == EmbeddingProvider.VOYAGE:
             from embeddings.providers.voyage import VoyageEmbedder
+
             return VoyageEmbedder()
-        elif provider_type == EmbeddingProvider.LOCAL:
-            from embeddings.providers.local import LocalEmbedder
-            return LocalEmbedder()
         else:
-            raise ValueError(f"Unknown embedding provider: {provider_type}")
+            raise ValueError(f"Unknown embedding provider: {provider_type}. Supported: OPENAI, VOYAGE")
 
     async def embed_chunks(self, chunks: list[Chunk]) -> list[Chunk]:
         """Embed chunks with caching."""
@@ -61,7 +61,7 @@ class Embedder:
 
         texts = []
         indices = []
-        model = getattr(self.provider, 'model', settings.embedding.local_model)
+        model = getattr(self.provider, "model", "unknown")
 
         for i, chunk in enumerate(chunks):
             text = chunk.to_embedding_text()
@@ -91,14 +91,14 @@ class Embedder:
         optimized = self._optimizer.optimize_query(query)
 
         # For Voyage, use query-specific embedding
-        if hasattr(self.provider, 'embed_query'):
+        if hasattr(self.provider, "embed_query"):
             return await self.provider.embed_query(query)
 
         return await self.provider.embed_text(optimized)
 
     async def embed_text(self, text: str) -> np.ndarray:
         """Embed a single text."""
-        model = getattr(self.provider, 'model', settings.embedding.local_model)
+        model = getattr(self.provider, "model", "unknown")
         cached = self._cache.get(text, model)
         if cached is not None:
             return cached
@@ -113,7 +113,7 @@ class Embedder:
         all_embeddings = []
 
         for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+            batch = texts[i : i + batch_size]
             embeddings = await self.provider.embed_texts(batch)
             all_embeddings.extend(embeddings)
 

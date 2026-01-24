@@ -4,8 +4,12 @@ import logging
 from datetime import datetime
 
 from core.types import (
-    TaskType, TaskStatus, TaskPlan, TaskStep,
-    BackendArchitecture, FrontendAnalysis
+    BackendArchitecture,
+    FrontendAnalysis,
+    TaskPlan,
+    TaskStatus,
+    TaskStep,
+    TaskType,
 )
 from core.utils import generate_id
 
@@ -15,18 +19,14 @@ logger = logging.getLogger(__name__)
 class TaskPlanner:
     """
     Plan tasks for code generation.
-    
+
     Uses templates for common tasks, LLM for novel ones.
     """
 
     def __init__(self, llm_client=None):
         self._llm = llm_client
 
-    async def create_plan(
-        self,
-        task_type: TaskType,
-        context: dict
-    ) -> TaskPlan:
+    async def create_plan(self, task_type: TaskType, context: dict) -> TaskPlan:
         """Create an execution plan for a task."""
         if task_type == TaskType.GENERATE_BACKEND:
             return await self._plan_generate_backend(context)
@@ -50,7 +50,7 @@ class TaskPlanner:
                 description="Analyze frontend code for models and APIs",
                 action="analyze_frontend",
                 parameters={},
-                dependencies=[]
+                dependencies=[],
             ),
             TaskStep(
                 id=generate_id(),
@@ -58,7 +58,7 @@ class TaskPlanner:
                 description="Infer data models from frontend evidence",
                 action="infer_models",
                 parameters={},
-                dependencies=["analyze_frontend"]
+                dependencies=["analyze_frontend"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -66,7 +66,7 @@ class TaskPlanner:
                 description="Infer relationships between models",
                 action="infer_relations",
                 parameters={},
-                dependencies=["infer_models"]
+                dependencies=["infer_models"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -74,7 +74,7 @@ class TaskPlanner:
                 description="Extract API contracts from frontend",
                 action="extract_api_contracts",
                 parameters={},
-                dependencies=["infer_models"]
+                dependencies=["infer_models"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -82,7 +82,7 @@ class TaskPlanner:
                 description="Analyze authentication requirements",
                 action="analyze_auth",
                 parameters={},
-                dependencies=["extract_api_contracts"]
+                dependencies=["extract_api_contracts"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -90,7 +90,7 @@ class TaskPlanner:
                 description="Design database schema",
                 action="design_schema",
                 parameters={},
-                dependencies=["infer_relations"]
+                dependencies=["infer_relations"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -98,7 +98,7 @@ class TaskPlanner:
                 description="Design API architecture",
                 action="design_api",
                 parameters={},
-                dependencies=["extract_api_contracts", "analyze_auth"]
+                dependencies=["extract_api_contracts", "analyze_auth"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -106,7 +106,7 @@ class TaskPlanner:
                 description="Design service layer",
                 action="design_services",
                 parameters={},
-                dependencies=["design_api"]
+                dependencies=["design_api"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -114,7 +114,7 @@ class TaskPlanner:
                 description="Plan authentication implementation",
                 action="plan_auth",
                 parameters={},
-                dependencies=["analyze_auth"]
+                dependencies=["analyze_auth"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -122,7 +122,12 @@ class TaskPlanner:
                 description="Generate backend code",
                 action="generate_code",
                 parameters={},
-                dependencies=["design_schema", "design_api", "design_services", "plan_auth"]
+                dependencies=[
+                    "design_schema",
+                    "design_api",
+                    "design_services",
+                    "plan_auth",
+                ],
             ),
             TaskStep(
                 id=generate_id(),
@@ -130,7 +135,7 @@ class TaskPlanner:
                 description="Validate generated code",
                 action="validate_code",
                 parameters={},
-                dependencies=["generate_code"]
+                dependencies=["generate_code"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -138,7 +143,7 @@ class TaskPlanner:
                 description="Apply changes to filesystem",
                 action="apply_changes",
                 parameters={},
-                dependencies=["validate_code"]
+                dependencies=["validate_code"],
             ),
         ]
 
@@ -149,53 +154,53 @@ class TaskPlanner:
             steps=steps,
             context=context,
             risk_level="medium",
-            estimated_time_ms=60000
+            estimated_time_ms=60000,
         )
 
     async def _plan_add_endpoint(self, context: dict) -> TaskPlan:
         """Plan adding a new endpoint."""
-        endpoint_config = context.get('endpoint', {})
-        
+        endpoint_config = context.get("endpoint", {})
+
         steps = [
             TaskStep(
                 id=generate_id(),
                 name="validate_endpoint",
                 description="Validate endpoint configuration",
                 action="validate_endpoint",
-                parameters={'endpoint': endpoint_config},
-                dependencies=[]
+                parameters={"endpoint": endpoint_config},
+                dependencies=[],
             ),
             TaskStep(
                 id=generate_id(),
                 name="generate_controller_method",
                 description="Generate controller method",
                 action="generate_controller_method",
-                parameters={'endpoint': endpoint_config},
-                dependencies=["validate_endpoint"]
+                parameters={"endpoint": endpoint_config},
+                dependencies=["validate_endpoint"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="generate_service_method",
                 description="Generate service method",
                 action="generate_service_method",
-                parameters={'endpoint': endpoint_config},
-                dependencies=["validate_endpoint"]
+                parameters={"endpoint": endpoint_config},
+                dependencies=["validate_endpoint"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="update_routes",
                 description="Add route to router",
                 action="update_routes",
-                parameters={'endpoint': endpoint_config},
-                dependencies=["generate_controller_method"]
+                parameters={"endpoint": endpoint_config},
+                dependencies=["generate_controller_method"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="generate_validation",
                 description="Generate validation schema",
                 action="generate_validation",
-                parameters={'endpoint': endpoint_config},
-                dependencies=["validate_endpoint"]
+                parameters={"endpoint": endpoint_config},
+                dependencies=["validate_endpoint"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -203,7 +208,12 @@ class TaskPlanner:
                 description="Apply changes",
                 action="apply_changes",
                 parameters={},
-                dependencies=["generate_controller_method", "generate_service_method", "update_routes", "generate_validation"]
+                dependencies=[
+                    "generate_controller_method",
+                    "generate_service_method",
+                    "update_routes",
+                    "generate_validation",
+                ],
             ),
         ]
 
@@ -214,69 +224,69 @@ class TaskPlanner:
             steps=steps,
             context=context,
             risk_level="low",
-            estimated_time_ms=5000
+            estimated_time_ms=5000,
         )
 
     async def _plan_add_model(self, context: dict) -> TaskPlan:
         """Plan adding a new model."""
-        model_config = context.get('model', {})
-        
+        model_config = context.get("model", {})
+
         steps = [
             TaskStep(
                 id=generate_id(),
                 name="validate_model",
                 description="Validate model configuration",
                 action="validate_model",
-                parameters={'model': model_config},
-                dependencies=[]
+                parameters={"model": model_config},
+                dependencies=[],
             ),
             TaskStep(
                 id=generate_id(),
                 name="update_prisma_schema",
                 description="Add model to Prisma schema",
                 action="update_prisma_schema",
-                parameters={'model': model_config},
-                dependencies=["validate_model"]
+                parameters={"model": model_config},
+                dependencies=["validate_model"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="generate_repository",
                 description="Generate repository",
                 action="generate_repository",
-                parameters={'model': model_config},
-                dependencies=["update_prisma_schema"]
+                parameters={"model": model_config},
+                dependencies=["update_prisma_schema"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="generate_service",
                 description="Generate service",
                 action="generate_service",
-                parameters={'model': model_config},
-                dependencies=["generate_repository"]
+                parameters={"model": model_config},
+                dependencies=["generate_repository"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="generate_controller",
                 description="Generate controller",
                 action="generate_controller",
-                parameters={'model': model_config},
-                dependencies=["generate_service"]
+                parameters={"model": model_config},
+                dependencies=["generate_service"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="update_routes",
                 description="Add routes for model",
                 action="update_routes",
-                parameters={'model': model_config},
-                dependencies=["generate_controller"]
+                parameters={"model": model_config},
+                dependencies=["generate_controller"],
             ),
             TaskStep(
                 id=generate_id(),
                 name="generate_migration",
                 description="Generate database migration",
                 action="generate_migration",
-                parameters={'model': model_config},
-                dependencies=["update_prisma_schema"]
+                parameters={"model": model_config},
+                dependencies=["update_prisma_schema"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -284,7 +294,13 @@ class TaskPlanner:
                 description="Apply changes",
                 action="apply_changes",
                 parameters={},
-                dependencies=["generate_repository", "generate_service", "generate_controller", "update_routes", "generate_migration"]
+                dependencies=[
+                    "generate_repository",
+                    "generate_service",
+                    "generate_controller",
+                    "update_routes",
+                    "generate_migration",
+                ],
             ),
         ]
 
@@ -295,7 +311,7 @@ class TaskPlanner:
             steps=steps,
             context=context,
             risk_level="medium",
-            estimated_time_ms=15000
+            estimated_time_ms=15000,
         )
 
     async def _plan_add_auth(self, context: dict) -> TaskPlan:
@@ -307,7 +323,7 @@ class TaskPlanner:
                 description="Analyze auth requirements",
                 action="analyze_auth_requirements",
                 parameters=context,
-                dependencies=[]
+                dependencies=[],
             ),
             TaskStep(
                 id=generate_id(),
@@ -315,7 +331,7 @@ class TaskPlanner:
                 description="Generate auth middleware",
                 action="generate_auth_middleware",
                 parameters={},
-                dependencies=["analyze_requirements"]
+                dependencies=["analyze_requirements"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -323,7 +339,7 @@ class TaskPlanner:
                 description="Generate auth service",
                 action="generate_auth_service",
                 parameters={},
-                dependencies=["analyze_requirements"]
+                dependencies=["analyze_requirements"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -331,7 +347,7 @@ class TaskPlanner:
                 description="Generate auth controller",
                 action="generate_auth_controller",
                 parameters={},
-                dependencies=["generate_auth_service"]
+                dependencies=["generate_auth_service"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -339,7 +355,7 @@ class TaskPlanner:
                 description="Update User model for auth",
                 action="update_user_model",
                 parameters={},
-                dependencies=["analyze_requirements"]
+                dependencies=["analyze_requirements"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -347,7 +363,11 @@ class TaskPlanner:
                 description="Apply changes",
                 action="apply_changes",
                 parameters={},
-                dependencies=["generate_auth_middleware", "generate_auth_controller", "update_user_model"]
+                dependencies=[
+                    "generate_auth_middleware",
+                    "generate_auth_controller",
+                    "update_user_model",
+                ],
             ),
         ]
 
@@ -358,7 +378,7 @@ class TaskPlanner:
             steps=steps,
             context=context,
             risk_level="medium",
-            estimated_time_ms=20000
+            estimated_time_ms=20000,
         )
 
     async def _plan_sync_frontend(self, context: dict) -> TaskPlan:
@@ -370,7 +390,7 @@ class TaskPlanner:
                 description="Re-analyze frontend for changes",
                 action="analyze_frontend",
                 parameters={},
-                dependencies=[]
+                dependencies=[],
             ),
             TaskStep(
                 id=generate_id(),
@@ -378,7 +398,7 @@ class TaskPlanner:
                 description="Infer data models from frontend",
                 action="infer_models",
                 parameters={},
-                dependencies=["analyze_frontend"]
+                dependencies=["analyze_frontend"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -386,7 +406,7 @@ class TaskPlanner:
                 description="Infer relationships between models",
                 action="infer_relations",
                 parameters={},
-                dependencies=["infer_models"]
+                dependencies=["infer_models"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -394,7 +414,7 @@ class TaskPlanner:
                 description="Extract API contracts from frontend",
                 action="extract_api_contracts",
                 parameters={},
-                dependencies=["analyze_frontend"]
+                dependencies=["analyze_frontend"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -402,7 +422,7 @@ class TaskPlanner:
                 description="Analyze authentication requirements",
                 action="analyze_auth",
                 parameters={},
-                dependencies=["analyze_frontend"]
+                dependencies=["analyze_frontend"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -410,7 +430,7 @@ class TaskPlanner:
                 description="Update database schema",
                 action="design_schema",
                 parameters={},
-                dependencies=["infer_models", "infer_relations"]
+                dependencies=["infer_models", "infer_relations"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -418,7 +438,7 @@ class TaskPlanner:
                 description="Design API structure",
                 action="design_api",
                 parameters={},
-                dependencies=["extract_api_contracts", "design_schema"]
+                dependencies=["extract_api_contracts", "design_schema"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -426,7 +446,7 @@ class TaskPlanner:
                 description="Plan authentication implementation",
                 action="plan_auth",
                 parameters={},
-                dependencies=["analyze_auth"]
+                dependencies=["analyze_auth"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -434,7 +454,7 @@ class TaskPlanner:
                 description="Design services layer",
                 action="design_services",
                 parameters={},
-                dependencies=["design_schema", "design_api"]
+                dependencies=["design_schema", "design_api"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -442,7 +462,7 @@ class TaskPlanner:
                 description="Generate updated code",
                 action="generate_code",
                 parameters={},
-                dependencies=["design_services", "design_api", "plan_auth"]
+                dependencies=["design_services", "design_api", "plan_auth"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -450,7 +470,7 @@ class TaskPlanner:
                 description="Validate generated code",
                 action="validate_code",
                 parameters={},
-                dependencies=["generate_code"]
+                dependencies=["generate_code"],
             ),
             TaskStep(
                 id=generate_id(),
@@ -458,7 +478,7 @@ class TaskPlanner:
                 description="Apply changes to filesystem",
                 action="apply_changes",
                 parameters={},
-                dependencies=["validate_code"]
+                dependencies=["validate_code"],
             ),
         ]
 
@@ -469,7 +489,7 @@ class TaskPlanner:
             steps=steps,
             context=context,
             risk_level="low",
-            estimated_time_ms=10000
+            estimated_time_ms=10000,
         )
 
     async def _plan_custom(self, task_type: TaskType, context: dict) -> TaskPlan:
@@ -482,7 +502,7 @@ class TaskPlanner:
                 description=f"Execute {task_type.value}",
                 action="execute_custom",
                 parameters=context,
-                dependencies=[]
+                dependencies=[],
             ),
         ]
 
@@ -493,17 +513,20 @@ class TaskPlanner:
             steps=steps,
             context=context,
             risk_level="medium",
-            estimated_time_ms=30000
+            estimated_time_ms=30000,
         )
 
     def estimate_risk(self, plan: TaskPlan) -> str:
         """Estimate risk level of a plan."""
         # Count impactful steps
-        high_risk_actions = {'update_prisma_schema', 'generate_migration', 'apply_changes'}
-        
+        high_risk_actions = {
+            "update_prisma_schema",
+            "generate_migration",
+            "apply_changes",
+        }
+
         high_risk_count = sum(
-            1 for step in plan.steps 
-            if step.action in high_risk_actions
+            1 for step in plan.steps if step.action in high_risk_actions
         )
 
         if high_risk_count >= 3:

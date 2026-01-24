@@ -1,11 +1,11 @@
 """Symbol table for storing and querying symbols."""
 
-import re
 import logging
+import re
 from collections import defaultdict
 from typing import Iterator
 
-from core.types import Symbol, SymbolKind, Position
+from core.types import Position, Symbol, SymbolKind
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +29,11 @@ class SymbolTable:
 
     def add(self, symbol: Symbol):
         """Add a symbol to the table."""
-        symbol_id = symbol.metadata.get('id', f"{symbol.file}:{symbol.name}")
-        qualified_name = symbol.metadata.get('qualified_name', f"{symbol.file}:{symbol.name}")
-        
+        symbol_id = symbol.metadata.get("id", f"{symbol.file}:{symbol.name}")
+        qualified_name = symbol.metadata.get(
+            "qualified_name", f"{symbol.file}:{symbol.name}"
+        )
+
         self._symbols[symbol_id] = symbol
         self._by_name[symbol.name.lower()].append(symbol_id)
         self._by_qualified[qualified_name] = symbol_id
@@ -70,37 +72,46 @@ class SymbolTable:
     def get_at_position(self, file: str, position: Position) -> Symbol | None:
         """Get symbol at a specific position."""
         symbols = self.get_by_file(file)
-        
+
         # Find the most specific symbol containing the position
         best_match = None
-        best_size = float('inf')
-        
+        best_size = float("inf")
+
         for symbol in symbols:
             # Check selection_range from metadata if available
-            selection_range = symbol.metadata.get('selection_range')
-            if selection_range and hasattr(selection_range, 'contains') and selection_range.contains(position):
-                size = selection_range.lines if hasattr(selection_range, 'lines') else float('inf')
+            selection_range = symbol.metadata.get("selection_range")
+            if (
+                selection_range
+                and hasattr(selection_range, "contains")
+                and selection_range.contains(position)
+            ):
+                size = (
+                    selection_range.lines
+                    if hasattr(selection_range, "lines")
+                    else float("inf")
+                )
                 if size < best_size:
                     best_match = symbol
                     best_size = size
             elif symbol.range.contains(position):
-                size = symbol.range.lines if hasattr(symbol.range, 'lines') else float('inf')
+                size = (
+                    symbol.range.lines
+                    if hasattr(symbol.range, "lines")
+                    else float("inf")
+                )
                 if best_match is None or size < best_size:
                     best_match = symbol
                     best_size = size
-        
+
         return best_match
 
     def search(
-        self, 
-        query: str, 
-        kinds: list[SymbolKind] | None = None,
-        max_results: int = 50
+        self, query: str, kinds: list[SymbolKind] | None = None, max_results: int = 50
     ) -> list[Symbol]:
         """Search symbols by name pattern."""
         query_lower = query.lower()
         results = []
-        
+
         # Exact match first
         for name, ids in self._by_name.items():
             if name == query_lower:
@@ -109,7 +120,7 @@ class SymbolTable:
                         symbol = self._symbols[sid]
                         if kinds is None or symbol.kind in kinds:
                             results.append((symbol, 100))  # Exact match score
-        
+
         # Prefix match
         for name, ids in self._by_name.items():
             if name.startswith(query_lower) and name != query_lower:
@@ -118,7 +129,7 @@ class SymbolTable:
                         symbol = self._symbols[sid]
                         if kinds is None or symbol.kind in kinds:
                             results.append((symbol, 80))
-        
+
         # Contains match
         for name, ids in self._by_name.items():
             if query_lower in name and not name.startswith(query_lower):
@@ -127,20 +138,22 @@ class SymbolTable:
                         symbol = self._symbols[sid]
                         if kinds is None or symbol.kind in kinds:
                             results.append((symbol, 60))
-        
+
         # Fuzzy match (camelCase/snake_case parts)
-        query_parts = set(re.findall(r'[a-z]+', query_lower))
+        query_parts = set(re.findall(r"[a-z]+", query_lower))
         if query_parts:
             for name, ids in self._by_name.items():
-                name_parts = set(re.findall(r'[a-z]+', name))
+                name_parts = set(re.findall(r"[a-z]+", name))
                 if query_parts & name_parts and query_lower not in name:
                     for sid in ids:
                         if sid in self._symbols:
                             symbol = self._symbols[sid]
                             if kinds is None or symbol.kind in kinds:
-                                overlap = len(query_parts & name_parts) / len(query_parts)
+                                overlap = len(query_parts & name_parts) / len(
+                                    query_parts
+                                )
                                 results.append((symbol, int(40 * overlap)))
-        
+
         # Sort by score and deduplicate
         seen = set()
         sorted_results = []
@@ -150,33 +163,33 @@ class SymbolTable:
                 sorted_results.append(symbol)
                 if len(sorted_results) >= max_results:
                     break
-        
+
         return sorted_results
 
     def remove_file(self, file: str):
         """Remove all symbols from a file."""
         ids = self._by_file.pop(file, [])
-        
+
         for sid in ids:
             if sid in self._symbols:
                 symbol = self._symbols[sid]
-                
+
                 # Remove from name index
                 name_lower = symbol.name.lower()
                 if name_lower in self._by_name:
                     self._by_name[name_lower] = [
                         s for s in self._by_name[name_lower] if s != sid
                     ]
-                
+
                 # Remove from qualified index
                 self._by_qualified.pop(symbol.qualified_name, None)
-                
+
                 # Remove from kind index
                 if symbol.kind in self._by_kind:
                     self._by_kind[symbol.kind] = [
                         s for s in self._by_kind[symbol.kind] if s != sid
                     ]
-                
+
                 # Remove symbol
                 del self._symbols[sid]
 

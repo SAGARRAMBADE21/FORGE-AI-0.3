@@ -1,100 +1,142 @@
 # generation/prompts/output/output_format_prompt.py
 """
-Output Format System Prompt
+Output Format System Prompt - Industry Standard XML Format
 """
 
 OUTPUT_FORMAT_PROMPT = """
-═══════════════════════════════════════════════════════════════════════════════
-                          OUTPUT FORMAT SPECIFICATION
-═══════════════════════════════════════════════════════════════════════════════
+<prompt_type>Code Output Format</prompt_type>
 
-When generating code, follow this output format strictly.
+<output_format>
+## File Generation Format
 
-═══════════════════════════════════════════════════════════════════════════════
-FILE FORMAT
-═══════════════════════════════════════════════════════════════════════════════
+When generating code files, use this exact format:
 
-Each file must be enclosed in file tags with the path attribute:
+```
+### FILE: path/to/file.ext
+<complete file content here>
+### END FILE
+```
 
-<file path="relative/path/to/file.ext">
-File content goes here
-</file>
+### Example
+```
+### FILE: app/models/user.py
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.sql import func
+from app.database import Base
 
-═══════════════════════════════════════════════════════════════════════════════
-MULTIPLE FILES
-═══════════════════════════════════════════════════════════════════════════════
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+### END FILE
 
-Generate all files sequentially:
+### FILE: app/schemas/user.py
+from pydantic import BaseModel, EmailStr
+from datetime import datetime
 
-<file path="src/main.ts">
-// Main entry point
-</file>
+class UserBase(BaseModel):
+    email: EmailStr
+    name: str
 
-<file path="src/controllers/user.controller.ts">
-// User controller
-</file>
+class UserCreate(UserBase):
+    password: str
 
-<file path="src/services/user.service.ts">
-// User service
-</file>
+class UserResponse(UserBase):
+    id: int
+    created_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+### END FILE
+```
+</output_format>
 
-═══════════════════════════════════════════════════════════════════════════════
-FILE CONTENT RULES
-═══════════════════════════════════════════════════════════════════════════════
+<formatting_rules>
+## Code Formatting
 
-COMPLETE CODE:
-Generate complete, working code. No placeholders or TODOs. All imports 
-included. All types defined.
+### Indentation
+- Python: 4 spaces
+- JavaScript/TypeScript: 2 spaces
+- Java: 4 spaces
+- Go: tabs (gofmt standard)
 
-NO TRUNCATION:
-Do not truncate files. Do not use ellipsis or comments like "rest of code".
-Complete implementation.
+### Imports
+- Group imports by type (standard library, third-party, local)
+- Sort alphabetically within groups
+- One blank line between groups
 
-COMMENTS:
-Add comments for complex logic. Document public APIs. Explain non-obvious 
-decisions.
+### Comments
+- Use docstrings for functions and classes
+- Inline comments for complex logic
+- TODO format: `# TODO(username): description`
 
-═══════════════════════════════════════════════════════════════════════════════
-REQUIRED FILES
-═══════════════════════════════════════════════════════════════════════════════
+### Naming Conventions
+| Language | Variables | Functions | Classes | Constants |
+|----------|-----------|-----------|---------|-----------|
+| Python | snake_case | snake_case | PascalCase | UPPER_SNAKE |
+| JavaScript | camelCase | camelCase | PascalCase | UPPER_SNAKE |
+| Java | camelCase | camelCase | PascalCase | UPPER_SNAKE |
+| Go | camelCase | CamelCase* | PascalCase | CamelCase |
 
-Always include these files when applicable:
+*Exported functions start with uppercase
+</formatting_rules>
 
-CONFIGURATION:
-- package.json or equivalent
-- tsconfig.json or equivalent
-- Environment configuration
-- Docker files
+<file_organization>
+## Project Structure
 
-SOURCE CODE:
-- Entry point
-- Controllers/Handlers
-- Services
-- Repositories
-- Models/Entities
-- DTOs/Schemas
-- Middleware
+### Python (FastAPI)
+```
+project/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── config.py
+│   ├── routers/
+│   ├── services/
+│   ├── repositories/
+│   ├── models/
+│   ├── schemas/
+│   └── utils/
+├── tests/
+├── pyproject.toml
+└── .env.example
+```
 
-INFRASTRUCTURE:
-- Dockerfile
-- docker-compose.yml
-- Kubernetes manifests if requested
+### Node.js (Express)
+```
+project/
+├── src/
+│   ├── index.js
+│   ├── app.js
+│   ├── config/
+│   ├── routes/
+│   ├── controllers/
+│   ├── services/
+│   ├── models/
+│   └── middleware/
+├── tests/
+├── package.json
+└── .env.example
+```
+</file_organization>
 
-DOCUMENTATION:
-- README.md with setup instructions
-
-═══════════════════════════════════════════════════════════════════════════════
-PATH CONVENTIONS
-═══════════════════════════════════════════════════════════════════════════════
-
-Use forward slashes for all paths. Start from project root. No leading 
-slash. Include file extension.
-
-EXAMPLES:
-src/main.ts
-src/controllers/user.controller.ts
-docker/Dockerfile
-k8s/deployment.yaml
-
-═══════════════════════════════════════════════════════════════════════════════
+<rules>
+<always>
+- Generate complete, runnable files
+- Include all necessary imports
+- Add proper file headers
+- Follow framework conventions
+- Include type hints/annotations
+- Add comprehensive docstrings
+</always>
+<never>
+- Leave TODO placeholders
+- Skip imports
+- Use incomplete code snippets
+- Mix formatting styles
+- Forget configuration files
+</never>
+</rules>
 """

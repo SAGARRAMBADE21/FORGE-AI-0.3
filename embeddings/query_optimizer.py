@@ -1,6 +1,7 @@
 """Query optimization for embeddings."""
 
 import re
+
 from config.settings import settings
 
 
@@ -28,17 +29,17 @@ class QueryOptimizer:
         queries = [query]
 
         # Extract identifiers and create variations
-        identifiers = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', query)
+        identifiers = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", query)
 
         for ident in identifiers:
             # camelCase to space-separated
-            spaced = re.sub(r'([a-z])([A-Z])', r'\1 \2', ident)
+            spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", ident)
             if spaced != ident:
                 queries.append(query.replace(ident, spaced))
 
             # snake_case to space-separated
-            if '_' in ident:
-                spaced = ident.replace('_', ' ')
+            if "_" in ident:
+                spaced = ident.replace("_", " ")
                 queries.append(query.replace(ident, spaced))
 
         return list(set(queries))[:3]  # Limit to 3 variations

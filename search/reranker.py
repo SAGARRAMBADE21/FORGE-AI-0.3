@@ -4,8 +4,8 @@ import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-from core.types import SearchResult
 from config.settings import settings
+from core.types import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,10 @@ class Reranker:
         """Detect best available device for reranking."""
         try:
             import torch
+
             if torch.cuda.is_available():
                 return "cuda"
-            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 return "mps"
             return "cpu"
         except ImportError:
@@ -34,18 +35,18 @@ class Reranker:
         if self._model is None:
             try:
                 from sentence_transformers import CrossEncoder
+
                 logger.info(f"Loading reranker: {settings.search.rerank_model}")
-                self._model = CrossEncoder(settings.search.rerank_model, device=self._device)
+                self._model = CrossEncoder(
+                    settings.search.rerank_model, device=self._device
+                )
                 logger.info(f"Reranker loaded on {self._device.upper()}")
             except Exception as e:
                 logger.error(f"Failed to load reranker: {e}")
                 self._model = False  # Mark as failed
 
     async def rerank(
-        self,
-        query: str,
-        results: list[SearchResult],
-        top_k: int | None = None
+        self, query: str, results: list[SearchResult], top_k: int | None = None
     ) -> list[SearchResult]:
         """Rerank search results using cross-encoder."""
         if not results:
@@ -55,10 +56,7 @@ class Reranker:
 
         loop = asyncio.get_event_loop()
         scores = await loop.run_in_executor(
-            self._executor,
-            self._rerank_sync,
-            query,
-            [r.chunk.content for r in results]
+            self._executor, self._rerank_sync, query, [r.chunk.content for r in results]
         )
 
         if scores is None:

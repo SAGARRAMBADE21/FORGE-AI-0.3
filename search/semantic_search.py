@@ -1,13 +1,14 @@
 """Semantic search implementation."""
 
-import time
 import logging
+import time
+
 import numpy as np
 
-from core.types import Chunk, SearchQuery, SearchResult, SearchResponse
+from config.settings import settings
+from core.types import Chunk, SearchQuery, SearchResponse, SearchResult
 from embeddings.embedder import get_embedder
 from vectorstore.store import get_vectorstore
-from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,31 +33,30 @@ class SemanticSearch:
         if query.language_filter:
             filters["language"] = {"$in": [l.value for l in query.language_filter]}
         if query.symbol_kind_filter:
-            filters["symbol_kind"] = {"$in": [sk.value for sk in query.symbol_kind_filter]}
+            filters["symbol_kind"] = {
+                "$in": [sk.value for sk in query.symbol_kind_filter]
+            }
 
         # Search
         results = await self._store.search(
             query_emb,
             top_k=query.top_k * 2,  # Get more for filtering
-            filters=filters if filters else None
+            filters=filters if filters else None,
         )
 
         # Filter by threshold and build results
         search_results = []
         for chunk, score in results:
             if score >= query.threshold:
-                search_results.append(SearchResult(
-                    chunk=chunk,
-                    score=score
-                ))
+                search_results.append(SearchResult(chunk=chunk, score=score))
 
-        search_results = search_results[:query.top_k]
+        search_results = search_results[: query.top_k]
 
         return SearchResponse(
             query=query.query,
             results=search_results,
             total_count=len(search_results),
-            search_time_ms=(time.time() - start) * 1000
+            search_time_ms=(time.time() - start) * 1000,
         )
 
     async def search_similar(self, chunk: Chunk, top_k: int = 5) -> list[SearchResult]:
@@ -69,5 +69,6 @@ class SemanticSearch:
         # Filter out the source chunk
         return [
             SearchResult(chunk=c, score=s, match_type="similar")
-            for c, s in results if c.id != chunk.id
+            for c, s in results
+            if c.id != chunk.id
         ][:top_k]

@@ -1,11 +1,17 @@
 """Infer relationships between models."""
 
-import re
 import logging
+import re
 
 from core.types import (
-    InferredModel, InferredField, InferredRelation, InferredRelationType,
-    InferredFieldType, ApiResourceContract, Evidence, EvidenceSource
+    ApiResourceContract,
+    Evidence,
+    EvidenceSource,
+    InferredField,
+    InferredFieldType,
+    InferredModel,
+    InferredRelation,
+    InferredRelationType,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,9 +30,7 @@ class RelationshipInferrer:
         pass
 
     async def infer_relationships(
-        self,
-        models: list[InferredModel],
-        api_resources: list[ApiResourceContract]
+        self, models: list[InferredModel], api_resources: list[ApiResourceContract]
     ) -> list[InferredRelation]:
         """Infer all relationships."""
         relations = []
@@ -51,58 +55,60 @@ class RelationshipInferrer:
         return relations
 
     def _infer_from_fields(
-        self, 
-        model: InferredModel, 
-        model_names: dict[str, str]
+        self, model: InferredModel, model_names: dict[str, str]
     ) -> list[InferredRelation]:
         """Infer relations from field patterns."""
         relations = []
 
         for field in model.fields:
             # Pattern: userId, authorId, postId
-            if field.name.endswith('Id') and len(field.name) > 2:
+            if field.name.endswith("Id") and len(field.name) > 2:
                 target_name = field.name[:-2].lower()
                 if target_name in model_names:
-                    relations.append(InferredRelation(
-                        source_model=model.name,
-                        target_model=model_names[target_name],
-                        relation_type=InferredRelationType.MANY_TO_ONE,
-                        source_field=field.name,
-                        target_field='id',
-                        evidence=field.evidence
-                    ))
+                    relations.append(
+                        InferredRelation(
+                            source_model=model.name,
+                            target_model=model_names[target_name],
+                            relation_type=InferredRelationType.MANY_TO_ONE,
+                            source_field=field.name,
+                            target_field="id",
+                            evidence=field.evidence,
+                        )
+                    )
 
             # Pattern: relation type reference
             if field.field_type == InferredFieldType.RELATION and field.relation_to:
                 target_lower = field.relation_to.lower()
                 if target_lower in model_names:
                     rel_type = field.relation_type or InferredRelationType.MANY_TO_ONE
-                    relations.append(InferredRelation(
-                        source_model=model.name,
-                        target_model=model_names[target_lower],
-                        relation_type=rel_type,
-                        source_field=field.name,
-                        target_field='id',
-                        evidence=field.evidence
-                    ))
+                    relations.append(
+                        InferredRelation(
+                            source_model=model.name,
+                            target_model=model_names[target_lower],
+                            relation_type=rel_type,
+                            source_field=field.name,
+                            target_field="id",
+                            evidence=field.evidence,
+                        )
+                    )
 
             # Self-referential: parentId
-            if field.name in ('parentId', 'parent_id'):
-                relations.append(InferredRelation(
-                    source_model=model.name,
-                    target_model=model.name,
-                    relation_type=InferredRelationType.SELF_REFERENTIAL,
-                    source_field=field.name,
-                    target_field='id',
-                    evidence=field.evidence
-                ))
+            if field.name in ("parentId", "parent_id"):
+                relations.append(
+                    InferredRelation(
+                        source_model=model.name,
+                        target_model=model.name,
+                        relation_type=InferredRelationType.SELF_REFERENTIAL,
+                        source_field=field.name,
+                        target_field="id",
+                        evidence=field.evidence,
+                    )
+                )
 
         return relations
 
     def _infer_from_api(
-        self,
-        api_resources: list[ApiResourceContract],
-        model_names: dict[str, str]
+        self, api_resources: list[ApiResourceContract], model_names: dict[str, str]
     ) -> list[InferredRelation]:
         """Infer relations from API endpoint patterns."""
         relations = []
@@ -110,25 +116,27 @@ class RelationshipInferrer:
         for resource in api_resources:
             for endpoint in resource.endpoints:
                 # Pattern: /users/:userId/posts
-                parts = endpoint.path.strip('/').split('/')
-                
+                parts = endpoint.path.strip("/").split("/")
+
                 for i, part in enumerate(parts):
-                    if part.startswith(':') and part.endswith('Id'):
+                    if part.startswith(":") and part.endswith("Id"):
                         parent_name = part[1:-2].lower()
-                        
+
                         # Look for child resource
                         if i + 1 < len(parts):
-                            child_name = parts[i + 1].rstrip('s').lower()
-                            
+                            child_name = parts[i + 1].rstrip("s").lower()
+
                             if parent_name in model_names and child_name in model_names:
-                                relations.append(InferredRelation(
-                                    source_model=model_names[child_name],
-                                    target_model=model_names[parent_name],
-                                    relation_type=InferredRelationType.MANY_TO_ONE,
-                                    source_field=f"{parent_name}Id",
-                                    target_field='id',
-                                    evidence=endpoint.evidence
-                                ))
+                                relations.append(
+                                    InferredRelation(
+                                        source_model=model_names[child_name],
+                                        target_model=model_names[parent_name],
+                                        relation_type=InferredRelationType.MANY_TO_ONE,
+                                        source_field=f"{parent_name}Id",
+                                        target_field="id",
+                                        evidence=endpoint.evidence,
+                                    )
+                                )
 
         return relations
 
@@ -146,9 +154,7 @@ class RelationshipInferrer:
         return unique
 
     def _add_inverse_relations(
-        self,
-        relations: list[InferredRelation],
-        model_names: dict[str, str]
+        self, relations: list[InferredRelation], model_names: dict[str, str]
     ) -> list[InferredRelation]:
         """Add inverse relations for bidirectional access."""
         all_relations = list(relations)
@@ -157,23 +163,27 @@ class RelationshipInferrer:
         for rel in relations:
             if rel.relation_type == InferredRelationType.MANY_TO_ONE:
                 # Add One-to-Many inverse
-                inverse_key = (rel.target_model, rel.source_model, f"{rel.source_model.lower()}s")
+                inverse_key = (
+                    rel.target_model,
+                    rel.source_model,
+                    f"{rel.source_model.lower()}s",
+                )
                 if inverse_key not in existing:
-                    all_relations.append(InferredRelation(
-                        source_model=rel.target_model,
-                        target_model=rel.source_model,
-                        relation_type=InferredRelationType.ONE_TO_MANY,
-                        source_field=f"{rel.source_model.lower()}s",
-                        target_field=rel.source_field,
-                        evidence=rel.evidence
-                    ))
+                    all_relations.append(
+                        InferredRelation(
+                            source_model=rel.target_model,
+                            target_model=rel.source_model,
+                            relation_type=InferredRelationType.ONE_TO_MANY,
+                            source_field=f"{rel.source_model.lower()}s",
+                            target_field=rel.source_field,
+                            evidence=rel.evidence,
+                        )
+                    )
 
         return all_relations
 
     def detect_many_to_many(
-        self,
-        models: list[InferredModel],
-        relations: list[InferredRelation]
+        self, models: list[InferredModel], relations: list[InferredRelation]
     ) -> list[InferredRelation]:
         """Detect many-to-many relationships requiring junction tables."""
         m2m_relations = []
@@ -182,20 +192,22 @@ class RelationshipInferrer:
         for model in models:
             # Pattern: model name like UserRole, PostTag
             if len(model.fields) <= 4:  # Junction tables are typically small
-                fk_fields = [f for f in model.fields if f.name.endswith('Id')]
+                fk_fields = [f for f in model.fields if f.name.endswith("Id")]
                 if len(fk_fields) == 2:
                     # This is likely a junction table
                     model1 = fk_fields[0].name[:-2]
                     model2 = fk_fields[1].name[:-2]
 
-                    m2m_relations.append(InferredRelation(
-                        source_model=model1,
-                        target_model=model2,
-                        relation_type=InferredRelationType.MANY_TO_MANY,
-                        source_field=f"{model2.lower()}s",
-                        target_field=f"{model1.lower()}s",
-                        through_model=model.name,
-                        evidence=model.evidence
-                    ))
+                    m2m_relations.append(
+                        InferredRelation(
+                            source_model=model1,
+                            target_model=model2,
+                            relation_type=InferredRelationType.MANY_TO_MANY,
+                            source_field=f"{model2.lower()}s",
+                            target_field=f"{model1.lower()}s",
+                            through_model=model.name,
+                            evidence=model.evidence,
+                        )
+                    )
 
         return m2m_relations

@@ -1,11 +1,11 @@
 """Execution runtime for running task plans."""
 
-import logging
 import asyncio
+import logging
 from datetime import datetime
-from typing import Callable, Any
+from typing import Any, Callable
 
-from core.types import TaskPlan, TaskStep, TaskStatus, Checkpoint
+from core.types import Checkpoint, TaskPlan, TaskStatus, TaskStep
 from orchestration.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
@@ -26,9 +26,7 @@ class ExecutionRuntime:
         self._actions[name] = handler
 
     async def execute(
-        self,
-        plan: TaskPlan,
-        on_progress: Callable[[str, TaskStep], None] | None = None
+        self, plan: TaskPlan, on_progress: Callable[[str, TaskStep], None] | None = None
     ) -> bool:
         """Execute a task plan."""
         self._current_plan = plan
@@ -45,7 +43,8 @@ class ExecutionRuntime:
         while len(completed) < len(plan.steps) and not failed:
             # Find ready steps (all dependencies completed)
             ready = [
-                step for step in plan.steps
+                step
+                for step in plan.steps
                 if step.id not in completed
                 and all(name_to_id.get(dep) in completed for dep in step.dependencies)
                 and step.status == TaskStatus.PENDING
@@ -53,14 +52,16 @@ class ExecutionRuntime:
 
             if not ready:
                 if len(completed) < len(plan.steps):
-                    logger.error("Deadlock detected - no ready steps but plan incomplete")
+                    logger.error(
+                        "Deadlock detected - no ready steps but plan incomplete"
+                    )
                     failed = True
                 break
 
             # Execute ready steps (could parallelize non-dependent steps)
             for step in ready:
                 success = await self._execute_step(step, plan_id, on_progress)
-                
+
                 if success:
                     completed.add(step.id)
                 else:
@@ -76,10 +77,7 @@ class ExecutionRuntime:
         return True
 
     async def _execute_step(
-        self,
-        step: TaskStep,
-        plan_id: str,
-        on_progress: Callable | None
+        self, step: TaskStep, plan_id: str, on_progress: Callable | None
     ) -> bool:
         """Execute a single step."""
         logger.info(f"Executing step: {step.name}")
@@ -99,7 +97,7 @@ class ExecutionRuntime:
 
             # Execute action
             result = await handler(step.parameters)
-            
+
             step.result = result
             step.status = TaskStatus.COMPLETED
 
@@ -124,10 +122,7 @@ class ExecutionRuntime:
         logger.info("Attempting rollback...")
 
         # Rollback in reverse order of completion
-        completed_steps = [
-            step for step in plan.steps 
-            if step.id in completed
-        ]
+        completed_steps = [step for step in plan.steps if step.id in completed]
 
         for step in reversed(completed_steps):
             if step.rollback_action:

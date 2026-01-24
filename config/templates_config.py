@@ -7,18 +7,20 @@ from pathlib import Path
 
 class BackendFramework(str, Enum):
     """Supported backend frameworks."""
-    EXPRESS = "express"      # TypeScript/Node.js
-    NESTJS = "nestjs"        # TypeScript/Node.js
-    FASTAPI = "fastapi"      # Python
-    DJANGO = "django"        # Python
-    FLASK = "flask"          # Python
-    GIN = "gin"              # Go
-    SPRING = "spring"        # Java
-    DOTNET = "dotnet"        # C#
+
+    EXPRESS = "express"  # TypeScript/Node.js
+    NESTJS = "nestjs"  # TypeScript/Node.js
+    FASTAPI = "fastapi"  # Python
+    DJANGO = "django"  # Python
+    FLASK = "flask"  # Python
+    GIN = "gin"  # Go
+    SPRING = "spring"  # Java
+    DOTNET = "dotnet"  # C#
 
 
 class DatabaseType(str, Enum):
     """Supported databases."""
+
     POSTGRESQL = "postgresql"
     MYSQL = "mysql"
     SQLITE = "sqlite"
@@ -27,6 +29,7 @@ class DatabaseType(str, Enum):
 
 class ORMType(str, Enum):
     """Supported ORMs."""
+
     PRISMA = "prisma"
     TYPEORM = "typeorm"
     SQLALCHEMY = "sqlalchemy"
@@ -36,24 +39,25 @@ class ORMType(str, Enum):
 @dataclass
 class TemplateConfig:
     """Template configuration."""
+
     framework: BackendFramework = BackendFramework.EXPRESS
     database: DatabaseType = DatabaseType.POSTGRESQL
     orm: ORMType = ORMType.PRISMA
     language: str = "typescript"
     output_dir: str = "backend"
-    
+
     # Feature flags
     use_docker: bool = True
     use_testing: bool = True
     use_swagger: bool = True
     use_validation: bool = True
     use_logging: bool = True
-    
+
     # Code style
     indent: int = 2
     quotes: str = "single"
     semicolons: bool = True
-    
+
     # Paths
     src_dir: str = "src"
     models_dir: str = "models"
@@ -64,7 +68,7 @@ class TemplateConfig:
     routes_dir: str = "routes"
     tests_dir: str = "tests"
     config_dir: str = "config"
-    
+
     def __post_init__(self):
         """Auto-detect language from framework if not explicitly set."""
         # Framework to language mapping
@@ -78,7 +82,7 @@ class TemplateConfig:
             BackendFramework.SPRING: "java",
             BackendFramework.DOTNET: "csharp",
         }
-        
+
         # Auto-detect language from framework
         if self.framework in framework_language_map:
             self.language = framework_language_map[self.framework]

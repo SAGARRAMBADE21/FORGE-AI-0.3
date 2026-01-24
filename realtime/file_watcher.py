@@ -1,12 +1,12 @@
 """Real-time file watching."""
 
 import asyncio
-import time
 import logging
+import time
 from pathlib import Path
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
-from config.settings import settings, EXTENSION_MAP
+from config.settings import EXTENSION_MAP, settings
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +15,7 @@ class FileWatcher:
     """Watch for file changes with debouncing."""
 
     def __init__(
-        self,
-        project_root: Path,
-        on_change: Callable[[str, str], Awaitable[None]]
+        self, project_root: Path, on_change: Callable[[str, str], Awaitable[None]]
     ):
         self.root = project_root
         self.on_change = on_change
@@ -36,9 +34,11 @@ class FileWatcher:
         logger.info(f"Watching {self.root} for changes")
 
         try:
-            from watchfiles import awatch, Change
+            from watchfiles import Change, awatch
 
-            async for changes in awatch(self.root, stop_event=self._create_stop_event()):
+            async for changes in awatch(
+                self.root, stop_event=self._create_stop_event()
+            ):
                 if not self._running:
                     break
 
@@ -47,7 +47,7 @@ class FileWatcher:
                         change_name = {
                             Change.added: "added",
                             Change.modified: "modified",
-                            Change.deleted: "deleted"
+                            Change.deleted: "deleted",
                         }.get(change_type, "unknown")
 
                         self._pending[path] = (change_name, time.time())
@@ -61,6 +61,7 @@ class FileWatcher:
     def _create_stop_event(self):
         """Create an event that triggers when watching should stop."""
         import threading
+
         event = threading.Event()
         return event
 

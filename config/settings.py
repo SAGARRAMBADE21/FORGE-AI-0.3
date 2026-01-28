@@ -216,7 +216,7 @@ class LLMConfig:
     # Backend generation (optimized for code generation)
     backend_provider: str = "openai"
     backend_model: str = "gpt-4.1-mini"
-    backend_max_tokens: int = 16384  # GPT-4.1-mini supports up to 1M context
+    backend_max_tokens: int = 32768  # Increased for complete code generation per stage
     backend_temperature: float = 0.1
 
     # Frontend generation (if different)

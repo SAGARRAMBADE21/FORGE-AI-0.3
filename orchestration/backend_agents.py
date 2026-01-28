@@ -144,9 +144,11 @@ class DatabaseEngineerAgent(BackendSubAgent):
             return {"error": "Unknown task"}
 
     async def _design_schema(self, task: AgentTask) -> Dict[str, Any]:
-        """Design database schema"""
+        """Design database schema with ORM-specific patterns"""
         models = task.input_data.get("models", [])
         relations = task.input_data.get("relations", [])
+        context = task.input_data.get("context")
+        framework = context.framework if context else "fastapi"
 
         # Consult with API engineer about data requirements
         api_requirements = await self.request_help(
@@ -155,6 +157,15 @@ class DatabaseEngineerAgent(BackendSubAgent):
             {"models": models},
         )
 
+        # Import FRAMEWORK_ORM_MAP for ORM selection
+        from generation.prompts.database import FRAMEWORK_ORM_MAP
+        
+        # Select ORM-specific prompt based on framework
+        framework_lower = framework.lower().replace("-", "").replace("_", "")
+        orm_key = FRAMEWORK_ORM_MAP.get(framework_lower, "orm_sqlalchemy")
+        orm_prompt = DATABASE_PROMPTS.get(orm_key, '')
+
+        
         # Use comprehensive database prompts from library
         system_prompt = f"""{MASTER_PROMPT}
 
@@ -162,21 +173,47 @@ class DatabaseEngineerAgent(BackendSubAgent):
 
 {DATABASE_PROMPTS.get('schema_design', '')}
 
-{DATABASE_PROMPTS.get('indexing', '')}"""
+{DATABASE_PROMPTS.get('indexing', '')}
+
+{orm_prompt}"""
+
+        # Build detailed model info for better schema generation
+        model_details = []
+        for m in models:
+            if hasattr(m, 'name') and hasattr(m, 'fields'):
+                fields_info = [f"  - {f.name}: {f.field_type}" for f in m.fields[:10]]
+                model_details.append(f"{m.name}:\n" + "\n".join(fields_info))
+            else:
+                model_details.append(f"- {m}")
+
+        # Build relationship info
+        relation_details = []
+        for r in relations:
+            if hasattr(r, 'source_model') and hasattr(r, 'target_model'):
+                relation_details.append(
+                    f"  - {r.source_model} -> {r.target_model} ({r.relation_type.value if hasattr(r.relation_type, 'value') else r.relation_type})"
+                )
 
         user_prompt = f"""
-Design database schema for models:
-{chr(10).join(f'- {m}' for m in models)}
+Design database schema for the following models:
 
-Relations: {relations}
+{chr(10).join(model_details) if model_details else chr(10).join(f'- {m}' for m in models)}
+
+Relationships:
+{chr(10).join(relation_details) if relation_details else 'Infer relationships from field names (userId -> User, etc.)'}
 
 API Requirements: {api_requirements}
 
-Generate:
-1. Schema definition (Prisma/TypeORM/SQLAlchemy)
-2. Indexes for performance
-3. Constraints and validations
-4. Migration strategy
+Target Framework: {framework}
+Database: {context.database if context else 'PostgreSQL'}
+
+Generate SQLAlchemy models with:
+1. Proper Column types (String, Integer, Numeric for money, DateTime with timezone)
+2. relationship() with back_populates for all foreign keys
+3. ForeignKey with ondelete="CASCADE" where appropriate
+4. Index definitions for query performance
+5. CheckConstraint for validations
+6. server_default=func.now() for timestamps
 """
 
         response = await self.llm.generate(
@@ -190,6 +227,7 @@ Generate:
             "indexes": [],
             "migrations": [],
         }
+
 
     async def _generate_code(self, task: AgentTask) -> Dict[str, Any]:
         """Generate database code"""

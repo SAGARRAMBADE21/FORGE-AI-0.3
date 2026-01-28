@@ -44,8 +44,164 @@ class TypeExtractor:
                     seen.add(model.name)
                     models.append(model)
 
+        # Extract from enums
+        for sym in indexer.symbol_table.get_by_kind(SymbolKind.ENUM):
+            enum_model = self._parse_enum(sym)
+            if enum_model and enum_model.name not in seen:
+                seen.add(enum_model.name)
+                models.append(enum_model)
+
+        # Extract Zod inferred types (z.infer<typeof xxxSchema>)
+        zod_models = await self._extract_zod_inferred_types(indexer)
+        for model in zod_models:
+            if model.name not in seen:
+                seen.add(model.name)
+                models.append(model)
+
+        # Extract Prisma model types
+        prisma_models = await self._extract_prisma_types(indexer)
+        for model in prisma_models:
+            if model.name not in seen:
+                seen.add(model.name)
+                models.append(model)
+
         logger.info(f"Extracted {len(models)} data models")
         return models
+
+    def _parse_enum(self, symbol) -> DataModel | None:
+        """Parse an enum symbol into a DataModel with enum values."""
+        source = symbol.metadata.get("source", symbol.signature)
+        if not source:
+            return None
+
+        # Extract enum values
+        fields = []
+        for match in re.finditer(r'(\w+)\s*=\s*[\'"`]?([^\'"`\n,}]+)[\'"`]?', source):
+            name, value = match.groups()
+            fields.append(FieldInfo(
+                name=name,
+                field_type="enum_value",
+                metadata={"value": value.strip()}
+            ))
+
+        if not fields:
+            # Try const enum pattern: enum X { A, B, C }
+            for match in re.finditer(r'^\s*(\w+)(?:\s*,)?$', source, re.MULTILINE):
+                fields.append(FieldInfo(
+                    name=match.group(1),
+                    field_type="enum_value",
+                ))
+
+        if not fields:
+            return None
+
+        return DataModel(
+            id=generate_id(),
+            name=symbol.name,
+            fields=fields,
+            source_file=symbol.file,
+            source=source,
+        )
+
+    async def _extract_zod_inferred_types(self, indexer: UnifiedIndexer) -> list[DataModel]:
+        """Extract type definitions inferred from Zod schemas."""
+        from config.settings import Language
+        models = []
+
+        for file_info in indexer.file_index.all_files():
+            if file_info.language not in (Language.TYPESCRIPT, Language.TSX):
+                continue
+
+            content = indexer.get_file_content(file_info.path)
+            if not content or "z.object" not in content:
+                continue
+
+            # Find: type User = z.infer<typeof userSchema>
+            for match in re.finditer(
+                r'type\s+(\w+)\s*=\s*z\.infer<typeof\s+(\w+)Schema>',
+                content
+            ):
+                type_name = match.group(1)
+                schema_name = match.group(2)
+
+                # Find the corresponding schema definition
+                schema_match = re.search(
+                    rf'const\s+{schema_name}Schema\s*=\s*z\.object\(\s*\{{([^}}]+)\}}',
+                    content,
+                    re.DOTALL
+                )
+                if schema_match:
+                    fields = self._parse_zod_schema_fields(schema_match.group(1))
+                    if fields:
+                        models.append(DataModel(
+                            id=generate_id(),
+                            name=type_name,
+                            fields=fields,
+                            source_file=file_info.path,
+                            source=schema_match.group(0),
+                        ))
+
+        return models
+
+    def _parse_zod_schema_fields(self, schema_body: str) -> list[FieldInfo]:
+        """Parse fields from Zod schema body."""
+        fields = []
+        zod_type_map = {
+            "string": "string", "number": "number", "boolean": "boolean",
+            "date": "datetime", "array": "array", "object": "json",
+            "enum": "enum", "bigint": "number", "uuid": "uuid",
+        }
+
+        for match in re.finditer(r'(\w+)\s*:\s*z\.(\w+)\(\)', schema_body):
+            field_name = match.group(1)
+            zod_type = match.group(2).lower()
+            field_type = zod_type_map.get(zod_type, "string")
+
+            is_optional = ".optional()" in schema_body[match.end():match.end()+20]
+
+            fields.append(FieldInfo(
+                name=field_name,
+                field_type=field_type,
+                required=not is_optional,
+            ))
+
+        return fields
+
+    async def _extract_prisma_types(self, indexer: UnifiedIndexer) -> list[DataModel]:
+        """Extract types imported from @prisma/client."""
+        from config.settings import Language
+        models = []
+
+        for file_info in indexer.file_index.all_files():
+            if file_info.language not in (Language.TYPESCRIPT, Language.TSX):
+                continue
+
+            content = indexer.get_file_content(file_info.path)
+            if not content or "@prisma/client" not in content:
+                continue
+
+            # Find: import { User, Post } from '@prisma/client'
+            for match in re.finditer(
+                r"import\s*\{([^}]+)\}\s*from\s*['\"]@prisma/client['\"]",
+                content
+            ):
+                imports = match.group(1)
+                for type_match in re.finditer(r'(\w+)', imports):
+                    type_name = type_match.group(1)
+                    # Skip Prisma utility types
+                    if type_name.startswith("Prisma") or type_name in ("$Enums",):
+                        continue
+                    # Create a placeholder model (actual fields from schema.prisma)
+                    models.append(DataModel(
+                        id=generate_id(),
+                        name=type_name,
+                        fields=[FieldInfo(name="id", field_type="string")],
+                        source_file=file_info.path,
+                        source=f"Prisma model: {type_name}",
+                    ))
+
+        return models
+
 
     def _parse_type_symbol(self, symbol) -> DataModel | None:
         """Parse a type/interface symbol into a DataModel."""
@@ -160,6 +316,7 @@ class TypeExtractor:
 
         field_names = {f.name.lower() for f in model.fields}
         indicators = {
+            # Common data model indicators
             "id",
             "uuid",
             "name",
@@ -173,6 +330,32 @@ class TypeExtractor:
             "userid",
             "user_id",
             "status",
+            # E-commerce specific indicators
+            "price",
+            "stock",
+            "quantity",
+            "category",
+            "image",
+            "total",
+            "items",
+            "product",
+            "productid",
+            "product_id",
+            "orderid",
+            "order_id",
+            "shippingaddress",
+            "shipping_address",
+            "fullname",
+            "full_name",
+            "street",
+            "city",
+            "zipcode",
+            "zip_code",
+            "country",
+            # Auth indicators
+            "token",
+            "password",
+            "role",
         }
 
         return bool(field_names & indicators)

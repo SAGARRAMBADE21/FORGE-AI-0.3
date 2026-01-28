@@ -61,7 +61,7 @@ class RelationshipInferrer:
         relations = []
 
         for field in model.fields:
-            # Pattern: userId, authorId, postId
+            # Pattern 1: userId, authorId, postId (camelCase)
             if field.name.endswith("Id") and len(field.name) > 2:
                 target_name = field.name[:-2].lower()
                 if target_name in model_names:
@@ -76,7 +76,74 @@ class RelationshipInferrer:
                         )
                     )
 
-            # Pattern: relation type reference
+            # Pattern 2: user_id, author_id (snake_case)
+            if field.name.endswith("_id") and len(field.name) > 3:
+                target_name = field.name[:-3].lower()
+                if target_name in model_names:
+                    relations.append(
+                        InferredRelation(
+                            source_model=model.name,
+                            target_model=model_names[target_name],
+                            relation_type=InferredRelationType.MANY_TO_ONE,
+                            source_field=field.name,
+                            target_field="id",
+                            evidence=field.evidence,
+                        )
+                    )
+
+            # Pattern 3: Array types indicating One-to-Many - e.g., items: CartItem[]
+            # Check if field name suggests plural (indicates array/collection)
+            is_array_field = (
+                field.name.endswith('s') or
+                field.name.endswith('es') or
+                field.name.endswith('ies') or
+                field.name.lower() == 'items' or
+                field.name.lower() == 'children'
+            )
+            
+            if is_array_field and field.relation_to:
+                target_lower = field.relation_to.lower()
+                if target_lower in model_names:
+                    relations.append(
+                        InferredRelation(
+                            source_model=model.name,
+                            target_model=model_names[target_lower],
+                            relation_type=InferredRelationType.ONE_TO_MANY,
+                            source_field=field.name,
+                            target_field=f"{model.name.lower()}Id",
+                            evidence=field.evidence,
+                        )
+                    )
+
+            # Pattern 4: Field name matches a model name (singular) - e.g., user: User
+            field_lower = field.name.lower()
+            if field_lower in model_names and field.field_type == InferredFieldType.RELATION:
+                relations.append(
+                    InferredRelation(
+                        source_model=model.name,
+                        target_model=model_names[field_lower],
+                        relation_type=InferredRelationType.MANY_TO_ONE,
+                        source_field=f"{field.name}Id",
+                        target_field="id",
+                        evidence=field.evidence,
+                    )
+                )
+
+            # Pattern 5: Field name is plural of a model - e.g., products: Product[]
+            singular = self._singularize(field.name)
+            if singular in model_names:
+                relations.append(
+                    InferredRelation(
+                        source_model=model.name,
+                        target_model=model_names[singular],
+                        relation_type=InferredRelationType.ONE_TO_MANY,
+                        source_field=field.name,
+                        target_field=f"{model.name.lower()}Id",
+                        evidence=field.evidence,
+                    )
+                )
+
+            # Pattern 6: relation type reference (existing logic)
             if field.field_type == InferredFieldType.RELATION and field.relation_to:
                 target_lower = field.relation_to.lower()
                 if target_lower in model_names:
@@ -92,7 +159,7 @@ class RelationshipInferrer:
                         )
                     )
 
-            # Self-referential: parentId
+            # Pattern 7: Self-referential: parentId, parent_id
             if field.name in ("parentId", "parent_id"):
                 relations.append(
                     InferredRelation(
@@ -106,6 +173,18 @@ class RelationshipInferrer:
                 )
 
         return relations
+
+    def _singularize(self, word: str) -> str:
+        """Simple singularization for common patterns."""
+        word_lower = word.lower()
+        if word_lower.endswith("ies"):
+            return word_lower[:-3] + "y"
+        elif word_lower.endswith("es") and len(word_lower) > 3:
+            return word_lower[:-2]
+        elif word_lower.endswith("s") and not word_lower.endswith("ss"):
+            return word_lower[:-1]
+        return word_lower
+
 
     def _infer_from_api(
         self, api_resources: list[ApiResourceContract], model_names: dict[str, str]

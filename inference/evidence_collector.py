@@ -30,13 +30,16 @@ class EvidenceCollector:
         """Collect all evidence organized by model name."""
         evidence_map: dict[str, list[Evidence]] = {}
 
-        # From TypeScript types
+        # From TypeScript types (high confidence - directly defines the model)
         for model in analysis.data_models:
             self._add_type_evidence(model, evidence_map)
 
         # From API calls
         for api in analysis.api_calls:
             self._add_api_evidence(api, evidence_map)
+            # Also link API response types to model evidence
+            if api.response_type:
+                self._link_response_type_to_model(api, evidence_map)
 
         # From forms
         for form in analysis.forms:
@@ -48,8 +51,46 @@ class EvidenceCollector:
         # From state management
         await self._collect_state_evidence(evidence_map)
 
+        # Boost confidence for models that have both type definition and API usage
+        self._boost_linked_models(evidence_map)
+
         logger.info(f"Collected evidence for {len(evidence_map)} potential models")
         return evidence_map
+
+    def _link_response_type_to_model(self, api: APICall, evidence_map: dict):
+        """Link API response type to corresponding model for stronger evidence."""
+        response_type = api.response_type
+        if not response_type:
+            return
+
+        # Strip array notation: Product[] -> Product
+        model_name = response_type.rstrip("[]").strip()
+
+        if model_name and model_name in evidence_map:
+            # Add a cross-reference evidence boosting the model
+            evidence_map[model_name].append(
+                Evidence(
+                    source=EvidenceSource.API_RESPONSE,
+                    file=api.file,
+                    line=api.line,
+                    content=f"API returns {response_type}",
+                    confidence=0.85,  # High confidence when API explicitly uses this type
+                    metadata={
+                        "endpoint": api.endpoint,
+                        "method": api.method.value,
+                        "linked_from": "response_type",
+                    },
+                )
+            )
+
+    def _boost_linked_models(self, evidence_map: dict):
+        """Boost confidence for models with multiple evidence sources."""
+        for model_name, evidences in evidence_map.items():
+            sources = {e.source for e in evidences}
+            # If model has both type definition AND API usage, it's very likely a real model
+            if EvidenceSource.TYPESCRIPT_TYPE in sources and EvidenceSource.API_RESPONSE in sources:
+                for e in evidences:
+                    e.confidence = min(1.0, e.confidence + 0.1)
 
     def _add_type_evidence(self, model: DataModel, evidence_map: dict):
         """Add evidence from TypeScript type."""

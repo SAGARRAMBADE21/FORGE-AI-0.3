@@ -840,14 +840,54 @@ class BackendAgent:
                 success=False, errors=["Multi-agent team not initialized"], files=[]
             )
 
+        # Framework to language mapping
+        framework_to_language = {
+            "express": "typescript",
+            "nestjs": "typescript",
+            "fastapi": "python",
+            "flask": "python",
+            "django": "python",
+            "gin": "go",
+            "echo": "go",
+            "fiber": "go",
+            "spring": "java",
+            "quarkus": "java",
+            "dotnet": "csharp",
+            "aspnet": "csharp",
+        }
+
+        # Framework-specific directory structures
+        framework_dirs = {
+            "express": {"models": "src/models", "api": "src/routes", "services": "src/services", "auth": "src/middleware", "tests": "tests", "ext": "ts"},
+            "nestjs": {"models": "src/entities", "api": "src/controllers", "services": "src/services", "auth": "src/auth", "tests": "test", "ext": "ts"},
+            "fastapi": {"models": "app/models", "api": "app/routers", "services": "app/services", "auth": "app/auth", "tests": "tests", "ext": "py"},
+            "flask": {"models": "app/models", "api": "app/routes", "services": "app/services", "auth": "app/auth", "tests": "tests", "ext": "py"},
+            "django": {"models": "apps/core/models", "api": "apps/api/views", "services": "apps/core/services", "auth": "apps/accounts", "tests": "tests", "ext": "py"},
+            "spring": {"models": "src/main/java/models", "api": "src/main/java/controllers", "services": "src/main/java/services", "auth": "src/main/java/security", "tests": "src/test/java", "ext": "java"},
+            "gin": {"models": "internal/models", "api": "internal/handlers", "services": "internal/services", "auth": "internal/middleware", "tests": "tests", "ext": "go"},
+            "dotnet": {"models": "Models", "api": "Controllers", "services": "Services", "auth": "Auth", "tests": "Tests", "ext": "cs"},
+        }
+
+        # Get framework config
+        framework_name = self.config.framework.value if self.config else "express"
+        framework_lower = framework_name.lower()
+        
+        # Determine language and directories from framework
+        language = framework_to_language.get(framework_lower, "typescript")
+        dirs = framework_dirs.get(framework_lower, framework_dirs["express"])
+        file_ext = dirs.get("ext", "ts")
+
+        # Get database from config
+        database = self.config.database.value if self.config else "postgresql"
+
         # Prepare context for agents
         from generation.pipeline import GenerationContext
 
         context = GenerationContext(
             project_name=self.root.name,
-            language="typescript",  # or from config
-            framework=self.config.framework.value if self.config else "express",
-            database="postgresql",  # or from config
+            language=language,
+            framework=framework_name,
+            database=database,
             architecture="layered",
             features=["crud", "auth", "validation", "testing"],
             models=self._architecture.models if self._architecture else [],
@@ -862,35 +902,35 @@ class BackendAgent:
         try:
             # Execute multi-agent workflow
             if progress:
-                progress("multi_agent", "Backend engineering team collaborating...")
+                progress("multi_agent", f"Backend engineering team collaborating ({framework_name}/{language})...")
 
             result = await self._agent_team.execute_workflow(
                 context=context, progress_callback=progress
             )
 
-            # Extract generated files from agent results
+            # Extract generated files from agent results using framework-specific paths
             generated_files = []
 
-            # Database files
+            # Database/Model files
             if result.get("database", {}).get("files"):
                 for file_path, content in result["database"]["files"].items():
                     generated_files.append(
                         GeneratedFile(
-                            path=f"src/models/{file_path}",
+                            path=f"{dirs['models']}/{file_path}",
                             content=str(content),
-                            file_type="ts",
+                            file_type=file_ext,
                             generator="database_engineer",
                         )
                     )
 
-            # API files
+            # API/Route/Controller files
             if result.get("api", {}).get("files"):
                 for file_path, content in result["api"]["files"].items():
                     generated_files.append(
                         GeneratedFile(
-                            path=f"src/api/{file_path}",
+                            path=f"{dirs['api']}/{file_path}",
                             content=str(content),
-                            file_type="ts",
+                            file_type=file_ext,
                             generator="api_engineer",
                         )
                     )
@@ -900,9 +940,9 @@ class BackendAgent:
                 for file_path, content in result["services"]["files"].items():
                     generated_files.append(
                         GeneratedFile(
-                            path=f"src/services/{file_path}",
+                            path=f"{dirs['services']}/{file_path}",
                             content=str(content),
-                            file_type="ts",
+                            file_type=file_ext,
                             generator="service_engineer",
                         )
                     )
@@ -912,9 +952,9 @@ class BackendAgent:
                 for file_path, content in result["auth"]["files"].items():
                     generated_files.append(
                         GeneratedFile(
-                            path=f"src/auth/{file_path}",
+                            path=f"{dirs['auth']}/{file_path}",
                             content=str(content),
-                            file_type="ts",
+                            file_type=file_ext,
                             generator="auth_engineer",
                         )
                     )
@@ -924,14 +964,14 @@ class BackendAgent:
                 for file_path, content in result["tests"]["files"].items():
                     generated_files.append(
                         GeneratedFile(
-                            path=f"tests/{file_path}",
+                            path=f"{dirs['tests']}/{file_path}",
                             content=str(content),
-                            file_type="ts",
+                            file_type=file_ext,
                             generator="testing_engineer",
                         )
                     )
 
-            # DevOps files
+            # DevOps files (framework-agnostic)
             if result.get("devops", {}).get("files"):
                 for file_path, content in result["devops"]["files"].items():
                     generated_files.append(
@@ -947,7 +987,7 @@ class BackendAgent:
             collaboration_summary = self._agent_team.get_agent_collaboration_summary()
 
             logger.info(
-                f"Multi-agent generation complete: {len(generated_files)} files"
+                f"Multi-agent generation complete: {len(generated_files)} files ({framework_name}/{language})"
             )
             logger.info(f"Agent collaboration: {collaboration_summary}")
 
@@ -957,6 +997,8 @@ class BackendAgent:
                 stats={
                     "generated_files": len(generated_files),
                     "multi_agent": True,
+                    "framework": framework_name,
+                    "language": language,
                     "agent_messages": collaboration_summary["total_messages"],
                     "agents_active": collaboration_summary["agents_active"],
                     "architecture": result.get("architecture"),

@@ -9,6 +9,7 @@ Optimizations:
 - Better error messages
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -48,9 +49,18 @@ class LLMGenerator:
 
     def __init__(
         self,
-        provider: str = "openrouter",
-        model: str = "meta-llama/llama-3.3-70b-instruct",
+        provider: str = None,
+        model: str = None,
     ):
+        # Import settings to get configured values
+        from config.settings import settings
+        
+        # Use settings if not explicitly provided
+        if provider is None:
+            provider = settings.llm.backend_provider
+        if model is None:
+            model = settings.llm.backend_model
+            
         self.config = LLMConfig(provider=provider, model=model)
         self._client = None
 
@@ -58,6 +68,8 @@ class LLMGenerator:
         self._cache = None
         self._optimizer = None
         self._tracker = None
+        
+        logger.info(f"LLMGenerator initialized: {provider}/{model}")
 
     @property
     def cache(self):
@@ -263,7 +275,7 @@ class LLMGenerator:
         return response
 
     async def _call_api(self, client, system_prompt: str, user_prompt: str) -> str:
-        """Make the actual API call with retry logic."""
+        """Make the actual API call with retry logic using async patterns."""
 
         for attempt in range(self.config.max_retries):
             try:
@@ -272,7 +284,9 @@ class LLMGenerator:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ]
-                    response = client.chat_completion(
+                    # Use asyncio.to_thread for non-blocking execution
+                    response = await asyncio.to_thread(
+                        client.chat_completion,
                         messages=messages,
                         max_tokens=self.config.max_tokens,
                         temperature=self.config.temperature,
@@ -280,7 +294,8 @@ class LLMGenerator:
                     return response.choices[0].message.content
 
                 elif self.config.provider == "anthropic":
-                    response = client.messages.create(
+                    response = await asyncio.to_thread(
+                        client.messages.create,
                         model=self.config.model,
                         max_tokens=self.config.max_tokens,
                         temperature=self.config.temperature,
@@ -290,7 +305,8 @@ class LLMGenerator:
                     return response.content[0].text
 
                 elif self.config.provider in ("openai", "groq", "openrouter"):
-                    response = client.chat.completions.create(
+                    response = await asyncio.to_thread(
+                        client.chat.completions.create,
                         model=self.config.model,
                         max_tokens=self.config.max_tokens,
                         temperature=self.config.temperature,
@@ -303,7 +319,8 @@ class LLMGenerator:
 
                 elif self.config.provider == "gemini":
                     full_prompt = f"{system_prompt}\n\n{user_prompt}"
-                    response = client.generate_content(
+                    response = await asyncio.to_thread(
+                        client.generate_content,
                         full_prompt,
                         generation_config={
                             "max_output_tokens": self.config.max_tokens,
@@ -315,14 +332,14 @@ class LLMGenerator:
             except Exception as e:
                 error_str = str(e).lower()
 
-                # Handle rate limits with exponential backoff
+                # Handle rate limits with exponential backoff (async sleep)
                 if any(x in error_str for x in ["quota", "rate", "429", "limit"]):
                     wait_time = self.config.retry_delay * (2**attempt)
                     logger.warning(
                         f"⏳ Rate limit hit, waiting {wait_time:.0f}s "
                         f"(attempt {attempt + 1}/{self.config.max_retries})"
                     )
-                    time.sleep(wait_time)
+                    await asyncio.sleep(wait_time)  # Non-blocking sleep
 
                     if attempt == self.config.max_retries - 1:
                         raise Exception(
@@ -350,7 +367,7 @@ class LLMGenerator:
                             f"   Model: {self.config.model}"
                         )
                     logger.warning(f"Retrying after error: {e}")
-                    time.sleep(self.config.retry_delay)
+                    await asyncio.sleep(self.config.retry_delay)  # Non-blocking sleep
 
         raise Exception("Failed to generate response")
 

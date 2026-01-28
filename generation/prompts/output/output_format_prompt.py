@@ -7,19 +7,23 @@ OUTPUT_FORMAT_PROMPT = """
 <prompt_type>Code Output Format</prompt_type>
 
 <output_format>
-## File Generation Format
+## CRITICAL: File Generation Format
 
-When generating code files, use this exact format:
+You MUST use this EXACT format for EVERY file you generate:
 
-```
 ### FILE: path/to/file.ext
-<complete file content here>
-### END FILE
+```language
+complete file content here
 ```
 
-### Example
+### FILE: path/to/another.ext
+```language
+complete file content here
 ```
+
+### Example Output
 ### FILE: app/models/user.py
+```python
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.sql import func
 from app.database import Base
@@ -31,10 +35,11 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-### END FILE
+```
 
 ### FILE: app/schemas/user.py
-from pydantic import BaseModel, EmailStr
+```python
+from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
 
 class UserBase(BaseModel):
@@ -49,8 +54,19 @@ class UserResponse(UserBase):
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
-### END FILE
 ```
+
+## IMPORTANT INSTRUCTIONS
+1. Generate MANY complete files (aim for 10-20+ files per response)
+2. Include ALL necessary files: models, schemas, routers, services, middleware, config
+3. Each file must be COMPLETE and RUNNABLE - NO placeholders, NO undefined methods
+4. DO NOT generate partial files or placeholders
+5. Use the ### FILE: format EXACTLY as shown above
+6. VERIFY all methods you call exist before generating references
+7. ALWAYS generate requirements.txt (Python) or package.json (Node.js)
+8. ALWAYS generate .env.example with all environment variables
+9. ALWAYS generate config files with proper settings management
+10. IF you use repository pattern, GENERATE the repository files too
 </output_format>
 
 <formatting_rules>

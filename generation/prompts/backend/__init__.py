@@ -10,6 +10,8 @@ detailed guidance on particular topics.
 from .backend_master_prompt import BACKEND_MASTER_PROMPT
 from .business_logic_prompt import BUSINESS_LOGIC_PROMPT
 from .caching_strategies_prompt import CACHING_STRATEGIES_PROMPT
+from .code_quality_checklist_prompt import CODE_QUALITY_CHECKLIST_PROMPT
+from .critical_files_prompt import CRITICAL_FILES_PROMPT
 from .error_handling_prompt import ERROR_HANDLING_PROMPT
 from .http_fundamentals_prompt import HTTP_FUNDAMENTALS_PROMPT
 from .middleware_prompt import MIDDLEWARE_PROMPT
@@ -27,6 +29,8 @@ __all__ = [
     "BUSINESS_LOGIC_PROMPT",
     "ERROR_HANDLING_PROMPT",
     "CACHING_STRATEGIES_PROMPT",
+    "CODE_QUALITY_CHECKLIST_PROMPT",
+    "CRITICAL_FILES_PROMPT",
     "TASK_QUEUING_PROMPT",
     "OBSERVABILITY_PROMPT",
     "SCALING_PERFORMANCE_PROMPT",

@@ -16,10 +16,15 @@ class APIExtractor:
     """Extract API calls from frontend code."""
 
     PATTERNS = [
-        # Fetch API
+        # =====================================================
+        # FETCH API
+        # =====================================================
         (r'fetch\s*\(\s*[\'"`]([^\'"`]+)[\'"`](?:\s*,\s*(\{[^}]*\}))?', "fetch"),
         (r"fetch\s*\(\s*`([^`]+)`(?:\s*,\s*(\{[^}]*\}))?", "fetch_template"),
-        # Axios
+        
+        # =====================================================
+        # AXIOS
+        # =====================================================
         (
             r'axios\s*\.\s*(get|post|put|patch|delete)\s*[<(]\s*[\'"`]([^\'"`]+)[\'"]',
             "axios",
@@ -28,19 +33,95 @@ class APIExtractor:
             r'axios\s*\(\s*\{[^}]*url\s*:\s*[\'"`]([^\'"`]+)[\'"][^}]*method\s*:\s*[\'"`](\w+)[\'"]',
             "axios_config",
         ),
+        
+        # =====================================================
         # SWR
+        # =====================================================
         (r'useSWR\s*[<(]\s*[\'"`]([^\'"`]+)[\'"]', "swr"),
         (r"useSWR\s*[<(]\s*`([^`]+)`", "swr_template"),
-        # React Query
+        (r'useSWRMutation\s*[<(]\s*[\'"`]([^\'"`]+)[\'"]', "swr_mutation"),
+        
+        # =====================================================
+        # REACT QUERY / TANSTACK QUERY
+        # =====================================================
         (r'useQuery\s*[<(][^)]*[\'"`]([^\'"`]+)[\'"]', "react_query"),
         (r"useMutation\s*[<(]", "react_mutation"),
-        # Other clients
+        (r'useInfiniteQuery\s*[<(][^)]*[\'"`]([^\'"`]+)[\'"]', "infinite_query"),
+        # TanStack Query v5 patterns
+        (r'queryOptions\s*\(\s*\{[^}]*queryKey\s*:\s*\[[\'"](\w+)', "tanstack_v5"),
+        (r'useSuspenseQuery\s*[<(]', "suspense_query"),
+        
+        # =====================================================
+        # RTK QUERY (Redux Toolkit Query)
+        # =====================================================
+        (r'use(\w+)Query\s*\(', "rtk_query"),
+        (r'use(\w+)Mutation\s*\(', "rtk_mutation"),
+        (r'useLazy(\w+)Query\s*\(', "rtk_lazy_query"),
+        (r'createApi\s*\(\s*\{[^}]*baseUrl\s*:\s*[\'"`]([^\'"`]+)[\'"]', "rtk_create_api"),
+        
+        # =====================================================
+        # tRPC
+        # =====================================================
+        (r'trpc\.(\w+)\.(\w+)\.(?:useQuery|query)', "trpc_query"),
+        (r'trpc\.(\w+)\.(\w+)\.(?:useMutation|mutate)', "trpc_mutation"),
+        (r'api\.(\w+)\.(\w+)\.useQuery', "trpc_api_query"),
+        (r'api\.(\w+)\.(\w+)\.useMutation', "trpc_api_mutation"),
+        
+        # =====================================================
+        # GRAPHQL / APOLLO CLIENT
+        # =====================================================
+        (r'useQuery\s*\(\s*(\w+_QUERY|\w+Query)', "graphql_query"),
+        (r'useMutation\s*\(\s*(\w+_MUTATION|\w+Mutation)', "graphql_mutation"),
+        (r'useLazyQuery\s*\(\s*(\w+)', "graphql_lazy"),
+        (r'useSubscription\s*\(\s*(\w+)', "graphql_subscription"),
+        (r'client\.query\s*\(\s*\{[^}]*query\s*:\s*(\w+)', "apollo_client_query"),
+        (r'client\.mutate\s*\(\s*\{[^}]*mutation\s*:\s*(\w+)', "apollo_client_mutation"),
+        (r'gql`\s*(?:query|mutation)\s+(\w+)', "gql_template"),
+        
+        # =====================================================
+        # OTHER HTTP CLIENTS
+        # =====================================================
         (r'ky\s*\.\s*(get|post|put|patch|delete)\s*\(\s*[\'"`]([^\'"`]+)[\'"]', "ky"),
         (
             r'\$http\s*\.\s*(get|post|put|patch|delete)\s*\(\s*[\'"`]([^\'"`]+)[\'"]',
             "angular_http",
         ),
+        # got / superagent
+        (r'got\s*\.\s*(get|post|put|patch|delete)\s*\(\s*[\'"`]([^\'"`]+)[\'"]', "got"),
+        (r'superagent\s*\.\s*(get|post|put|patch|delete)\s*\(\s*[\'"`]([^\'"`]+)[\'"]', "superagent"),
+        # ofetch / $fetch (Nuxt)
+        (r'\$fetch\s*[<(]\s*[\'"`]([^\'"`]+)[\'"]', "nuxt_fetch"),
+        (r'useFetch\s*[<(]\s*[\'"`]([^\'"`]+)[\'"]', "nuxt_usefetch"),
     ]
+
+
+    # Patterns to detect mock API service objects (e.g., export const productsApi = { ... })
+    MOCK_API_PATTERNS = [
+        # export const xxxApi = { getAll: async () => ... }
+        (r'export\s+const\s+(\w+)Api\s*=\s*\{', "mock_api_service"),
+        # export const xxxService = { ... }
+        (r'export\s+const\s+(\w+)Service\s*=\s*\{', "mock_api_service"),
+    ]
+
+    # Method name to HTTP method mapping for mock APIs
+    MOCK_METHOD_MAP = {
+        "getall": HTTPMethod.GET,
+        "getbyid": HTTPMethod.GET,
+        "get": HTTPMethod.GET,
+        "find": HTTPMethod.GET,
+        "findall": HTTPMethod.GET,
+        "findone": HTTPMethod.GET,
+        "list": HTTPMethod.GET,
+        "create": HTTPMethod.POST,
+        "add": HTTPMethod.POST,
+        "post": HTTPMethod.POST,
+        "update": HTTPMethod.PUT,
+        "put": HTTPMethod.PUT,
+        "patch": HTTPMethod.PATCH,
+        "delete": HTTPMethod.DELETE,
+        "remove": HTTPMethod.DELETE,
+        "getbycategory": HTTPMethod.GET,
+    }
 
     def __init__(self, project_root: Path):
         self.root = project_root
@@ -79,11 +160,76 @@ class APIExtractor:
         calls = []
         lines = content.split("\n")
 
+        # Standard API patterns (fetch, axios, etc.)
         for pattern, ptype in self.PATTERNS:
             for match in re.finditer(pattern, content, re.DOTALL | re.IGNORECASE):
                 call = self._parse_match(match, ptype, file, content, lines)
                 if call:
                     calls.append(call)
+
+        # Mock API service patterns (export const xxxApi = { ... })
+        mock_calls = self._extract_mock_apis(content, file, lines)
+        calls.extend(mock_calls)
+
+        return calls
+
+    def _extract_mock_apis(self, content: str, file: str, lines: list) -> list[APICall]:
+        """Extract API calls from mock API service objects."""
+        calls = []
+
+        for pattern, ptype in self.MOCK_API_PATTERNS:
+            for match in re.finditer(pattern, content, re.IGNORECASE):
+                resource_name = match.group(1)  # e.g., "products" from "productsApi"
+                line_num = content[: match.start()].count("\n")
+
+                # Find the object body (everything between { and closing })
+                start_idx = match.end() - 1  # Start at the {
+                brace_count = 1
+                end_idx = start_idx + 1
+
+                while brace_count > 0 and end_idx < len(content):
+                    if content[end_idx] == "{":
+                        brace_count += 1
+                    elif content[end_idx] == "}":
+                        brace_count -= 1
+                    end_idx += 1
+
+                obj_body = content[start_idx:end_idx]
+
+                # Extract method names from the object
+                method_pattern = r'(\w+)\s*:\s*async\s*\([^)]*\)\s*(?::\s*Promise<([^>]+)>)?'
+                for method_match in re.finditer(method_pattern, obj_body):
+                    method_name = method_match.group(1).lower()
+                    response_type = method_match.group(2)  # e.g., "Product[]" or "Product"
+
+                    # Map method name to HTTP method
+                    http_method = self.MOCK_METHOD_MAP.get(method_name, HTTPMethod.GET)
+
+                    # Build endpoint from resource name and method
+                    endpoint = f"/api/{resource_name.lower()}"
+                    if method_name in ("getbyid", "findone", "update", "delete", "remove"):
+                        endpoint += "/:id"
+                    elif method_name.startswith("getby"):
+                        # e.g., getByCategory -> /api/products?category=:category
+                        param = method_name[5:].lower()  # "category"
+                        endpoint += f"?{param}=:{param}"
+
+                    # Extract path params
+                    path_params = re.findall(r":(\w+)", endpoint)
+
+                    calls.append(
+                        APICall(
+                            id=generate_id(),
+                            file=file,
+                            line=line_num,
+                            method=http_method,
+                            endpoint=endpoint,
+                            path_params=path_params,
+                            requires_auth=False,
+                            response_type=response_type.rstrip("[]") if response_type else None,
+                            source=method_match.group(0),
+                        )
+                    )
 
         return calls
 

@@ -36,6 +36,8 @@ from .prompts.backend import (
     BUSINESS_LOGIC_PROMPT,
     OBSERVABILITY_PROMPT,
     HTTP_FUNDAMENTALS_PROMPT,
+    CRITICAL_FILES_PROMPT,
+    CODE_QUALITY_CHECKLIST_PROMPT,
 )
 
 
@@ -54,24 +56,33 @@ class PromptBuilder:
         database: Optional[str] = None,
     ) -> str:
         """
-        Build MAXIMUM system prompt utilizing ALL backend knowledge.
+        Build OPTIMIZED system prompt with strategic knowledge selection.
         
-        FORGE is focused on backend - this includes ALL relevant prompts:
-        - ALL security prompts (OWASP, encryption, secrets, RBAC, vulnerability scanning)
-        - ALL principles (SOLID, Clean Code, DRY/KISS/YAGNI, Design Patterns)
-        - ALL database knowledge (SQL, NoSQL, indexing, transactions, schema, sharding)
-        - ALL API best practices (REST, GraphQL, gRPC, pagination, rate limiting, versioning)
-        - ALL backend patterns (error handling, validation, middleware, business logic)
-        - ALL auth patterns (JWT, OAuth2, SSO, MFA, session management)
-        - ALL performance (caching, scaling, load balancing, message queues)
-        - ALL testing (unit, integration, e2e, load, contract, TDD)
-        - ALL DevOps (Docker, CI/CD, Kubernetes, monitoring)
+        This balances comprehensive knowledge with prompt size to avoid
+        the "lost in the middle" problem where LLMs miss critical instructions
+        in very long prompts.
+        
+        Strategy:
+        - OUTPUT_FORMAT at START and END (reinforcement)
+        - Core stack (language, framework, arch) always included
+        - Stage-specific knowledge prioritized
+        - Essential security (OWASP) always included
+        - Core principles (SOLID, Clean Code) always included
+        
+        Target: ~40-50K characters (~10-12K tokens) - well within context limits
         """
-        prompts = [MASTER_PROMPT]
-
+        prompts = []
+        
         # =========================================
-        # BACKEND MASTER (Comprehensive guidance)
+        # OUTPUT FORMAT - START (Critical - must follow!)
         # =========================================
+        prompts.append(OUTPUT_FORMAT_PROMPT)
+        prompts.append(CODE_QUALITY_CHECKLIST_PROMPT)  # Pre-generation validation
+        
+        # =========================================
+        # MASTER PROMPTS
+        # =========================================
+        prompts.append(MASTER_PROMPT)
         prompts.append(BACKEND_MASTER_PROMPT)
 
         # =========================================
@@ -87,77 +98,71 @@ class PromptBuilder:
             prompts.append(FRAMEWORK_PROMPTS[framework])
 
         # =========================================
-        # ALL DATABASE KNOWLEDGE
+        # DATABASE (Only selected + core knowledge)
         # =========================================
-        for db_key, db_prompt in DATABASE_PROMPTS.items():
-            if database and db_key == database:
-                prompts.append(db_prompt)  # Primary database first
-        # Then add all database knowledge
-        for db_key in ["sql", "nosql", "indexing", "transactions", "schema_design", "sharding_replication"]:
+        if database and database in DATABASE_PROMPTS:
+            prompts.append(DATABASE_PROMPTS[database])
+        # Add core database knowledge
+        for db_key in ["sql", "indexing", "transactions"]:
             if db_key in DATABASE_PROMPTS:
                 prompts.append(DATABASE_PROMPTS[db_key])
 
         # =========================================
-        # ALL API KNOWLEDGE
+        # API KNOWLEDGE (Core APIs)
         # =========================================
-        for api_key in ["rest", "graphql", "grpc", "pagination", "rate_limiting", "versioning"]:
+        for api_key in ["rest", "pagination", "rate_limiting"]:
             if api_key in API_PROMPTS:
                 prompts.append(API_PROMPTS[api_key])
 
         # =========================================
-        # ALL BACKEND PATTERNS
+        # BACKEND PATTERNS (Essential)
         # =========================================
         prompts.append(ERROR_HANDLING_PROMPT)
         prompts.append(VALIDATION_PROMPT)
         prompts.append(MIDDLEWARE_PROMPT)
-        prompts.append(BUSINESS_LOGIC_PROMPT)
         prompts.append(HTTP_FUNDAMENTALS_PROMPT)
-        prompts.append(OBSERVABILITY_PROMPT)
+        prompts.append(CRITICAL_FILES_PROMPT)  # CRITICAL: Always include
 
         # =========================================
-        # ALL SECURITY KNOWLEDGE
+        # SECURITY (Essential - OWASP always)
         # =========================================
-        for sec_key in ["owasp", "encryption", "rbac", "secrets_management", "vulnerability_scanning"]:
-            if sec_key in SECURITY_PROMPTS:
-                prompts.append(SECURITY_PROMPTS[sec_key])
+        if "owasp" in SECURITY_PROMPTS:
+            prompts.append(SECURITY_PROMPTS["owasp"])
 
         # =========================================
-        # ALL AUTH KNOWLEDGE
+        # AUTH (Based on features)
         # =========================================
-        for auth_key in ["jwt", "oauth2", "session_management", "sso", "mfa", "ldap"]:
-            if auth_key in AUTH_PROMPTS:
-                prompts.append(AUTH_PROMPTS[auth_key])
+        features = features or []
+        if any(f in features for f in ["auth", "authentication", "jwt"]):
+            for auth_key in ["jwt", "oauth2"]:
+                if auth_key in AUTH_PROMPTS:
+                    prompts.append(AUTH_PROMPTS[auth_key])
 
         # =========================================
-        # ALL PERFORMANCE KNOWLEDGE
+        # PRINCIPLES (Core only)
         # =========================================
-        for perf_key in ["caching", "scaling", "load_balancing", "message_queue", "disaster_recovery"]:
-            if perf_key in PERFORMANCE_PROMPTS:
-                prompts.append(PERFORMANCE_PROMPTS[perf_key])
-
-        # =========================================
-        # ALL DEVOPS KNOWLEDGE
-        # =========================================
-        for devops_key in ["docker", "cicd", "kubernetes", "monitoring", "terraform"]:
-            if devops_key in DEVOPS_PROMPTS:
-                prompts.append(DEVOPS_PROMPTS[devops_key])
-
-        # =========================================
-        # ALL TESTING KNOWLEDGE
-        # =========================================
-        for test_key in ["unit_testing", "integration_testing", "e2e_testing", "load_testing", "contract_testing", "tdd_bdd"]:
-            if test_key in TESTING_PROMPTS:
-                prompts.append(TESTING_PROMPTS[test_key])
-
-        # =========================================
-        # ALL PRINCIPLES
-        # =========================================
-        for principle in ["solid", "clean_code", "dry_kiss_yagni", "design_patterns"]:
+        for principle in ["solid", "clean_code"]:
             if principle in PRINCIPLES_PROMPTS:
                 prompts.append(PRINCIPLES_PROMPTS[principle])
 
         # =========================================
-        # OUTPUT FORMAT
+        # TESTING (If feature requested)
+        # =========================================
+        if "testing" in features:
+            for test_key in ["unit_testing", "integration_testing"]:
+                if test_key in TESTING_PROMPTS:
+                    prompts.append(TESTING_PROMPTS[test_key])
+
+        # =========================================
+        # DEVOPS (If feature requested)
+        # =========================================
+        if any(f in features for f in ["docker", "kubernetes", "devops"]):
+            for devops_key in ["docker", "cicd"]:
+                if devops_key in DEVOPS_PROMPTS:
+                    prompts.append(DEVOPS_PROMPTS[devops_key])
+
+        # =========================================
+        # OUTPUT FORMAT - END (Reinforcement!)
         # =========================================
         prompts.append(OUTPUT_FORMAT_PROMPT)
 
@@ -176,16 +181,28 @@ class PromptBuilder:
         """
         Build user prompt with context
         """
+        # Build comprehensive model spec from context
+        model_spec = self._build_model_spec(context)
+        design_spec = self._build_design_spec(context)
+        
         return f"""
 <generation_request>
     <stage>{stage}</stage>
-    <project_name>{context.project_name}</project_name>
+    <project_name>{context.project_name or 'backend'}</project_name>
     <language>{context.language}</language>
     <framework>{context.framework}</framework>
     <database>{context.database}</database>
-    <architecture>{context.architecture}</architecture>
-    <features>{', '.join(context.features)}</features>
+    <architecture>{context.architecture or 'layered'}</architecture>
+    <features>{', '.join(context.features) if context.features else ''}</features>
 </generation_request>
+
+<data_models>
+{model_spec}
+</data_models>
+
+<api_resources>
+{design_spec}
+</api_resources>
 
 <inferred_specification>
 {self._format_spec(context.inferred_spec)}
@@ -202,6 +219,59 @@ class PromptBuilder:
 Generate the {stage} layer code following all system prompt guidelines.
 Output using the specified file format.
 """
+
+    def _build_model_spec(self, context: Any) -> str:
+        """Build model specification from context models."""
+        if not context.models:
+            return "No models specified"
+        
+        import json
+        models_data = []
+        for model in context.models:
+            model_info = {
+                "name": model.name,
+                "fields": [],
+                "primary_key": getattr(model, "primary_key", "id"),
+                "timestamps": getattr(model, "timestamps", True),
+            }
+            for field in model.fields:
+                field_info = {
+                    "name": field.name,
+                    "type": field.field_type.value if hasattr(field.field_type, "value") else str(field.field_type),
+                    "nullable": getattr(field, "nullable", False),
+                    "unique": getattr(field, "unique", False),
+                }
+                if hasattr(field, "constraints") and field.constraints:
+                    field_info["constraints"] = field.constraints
+                if hasattr(field, "relation_to") and field.relation_to:
+                    field_info["relation_to"] = field.relation_to
+                model_info["fields"].append(field_info)
+            models_data.append(model_info)
+        
+        return json.dumps(models_data, indent=2, default=str)
+
+    def _build_design_spec(self, context: Any) -> str:
+        """Build API design specification from context."""
+        if not context.api_resources:
+            return "No API resources specified"
+        
+        import json
+        api_data = []
+        for resource in context.api_resources:
+            resource_info = {
+                "name": getattr(resource, "name", str(resource)),
+                "endpoints": [],
+            }
+            if hasattr(resource, "endpoints"):
+                for endpoint in resource.endpoints:
+                    ep_info = {
+                        "method": getattr(endpoint, "method", "GET"),
+                        "path": getattr(endpoint, "path", ""),
+                    }
+                    resource_info["endpoints"].append(ep_info)
+            api_data.append(resource_info)
+        
+        return json.dumps(api_data, indent=2, default=str)
 
     def build_single_file_prompt(
         self, file_type: str, language: str, framework: str

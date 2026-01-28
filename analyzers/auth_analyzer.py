@@ -14,6 +14,62 @@ logger = logging.getLogger(__name__)
 class AuthAnalyzer:
     """Detect authentication patterns in frontend code."""
 
+    # Modern auth provider detection patterns
+    AUTH_PROVIDERS = {
+        "firebase": [
+            r"firebase.*/auth",
+            r"signInWithEmailAndPassword",
+            r"signInWithPopup",
+            r"signInWithGoogle",
+            r"createUserWithEmailAndPassword",
+            r"onAuthStateChanged",
+            r"getAuth\s*\(",
+        ],
+        "supabase": [
+            r"supabase\.auth\.",
+            r"@supabase/auth-helpers",
+            r"createClient.*supabase",
+            r"supabase\.auth\.signIn",
+            r"supabase\.auth\.signUp",
+        ],
+        "nextauth": [
+            r"next-auth",
+            r"@auth/",
+            r"NextAuth",
+            r"useSession\s*\(",
+            r"getServerSession",
+            r"signIn\s*\(",
+            r"getSession\s*\(",
+            r"SessionProvider",
+        ],
+        "clerk": [
+            r"@clerk/",
+            r"useUser\s*\(",
+            r"useAuth\s*\(",
+            r"ClerkProvider",
+            r"SignIn",
+            r"SignUp",
+            r"UserButton",
+        ],
+        "auth0": [
+            r"@auth0/",
+            r"useAuth0\s*\(",
+            r"Auth0Provider",
+            r"loginWithRedirect",
+            r"getAccessTokenSilently",
+        ],
+        "kinde": [
+            r"@kinde-oss/",
+            r"useKindeAuth",
+            r"KindeProvider",
+        ],
+        "lucia": [
+            r"lucia-auth",
+            r"lucia\s*\(",
+            r"validateSession",
+        ],
+    }
+
     def __init__(self, project_root: Path):
         self.root = project_root
 
@@ -24,6 +80,8 @@ class AuthAnalyzer:
         auth_type = AuthType.NONE
         storage = key = None
         login_ep = logout_ep = refresh_ep = None
+        detected_provider = None
+        protected_routes = []
 
         for file_info in indexer.file_index.all_files():
             if file_info.language not in (
@@ -37,6 +95,16 @@ class AuthAnalyzer:
             content = indexer.get_file_content(file_info.path)
             if not content:
                 continue
+
+            # Detect modern auth providers
+            for provider, patterns in self.AUTH_PROVIDERS.items():
+                for pattern in patterns:
+                    if re.search(pattern, content, re.I):
+                        detected_provider = provider
+                        auth_type = AuthType.JWT if provider != "auth0" else AuthType.OAUTH
+                        break
+                if detected_provider:
+                    break
 
             # Detect JWT/Bearer
             if re.search(r"Bearer\s+", content):
@@ -77,6 +145,20 @@ class AuthAnalyzer:
                 if auth_type == AuthType.NONE:
                     auth_type = AuthType.API_KEY
 
+            # Detect protected routes (middleware patterns)
+            if re.search(r"requireAuth|withAuth|ProtectedRoute|AuthGuard", content, re.I):
+                # Try to extract route paths
+                route_matches = re.findall(r'[\'"](/\w+(?:/\w+)*)[\'"]', content)
+                protected_routes.extend(route_matches)
+
+            # NextAuth middleware pattern
+            if "middleware" in file_info.path.lower():
+                if re.search(r"matcher\s*:\s*\[([^\]]+)\]", content):
+                    matcher_match = re.search(r"matcher\s*:\s*\[([^\]]+)\]", content)
+                    if matcher_match:
+                        routes = re.findall(r'[\'"]([^\'"\s]+)[\'"]', matcher_match.group(1))
+                        protected_routes.extend(routes)
+
         # Find auth endpoints from API calls
         for api in api_calls:
             ep = api.endpoint.lower()
@@ -89,8 +171,9 @@ class AuthAnalyzer:
             elif "/register" in ep or "/signup" in ep:
                 pass  # Could track this too
 
-        if auth_type != AuthType.NONE or login_ep:
-            logger.info(f"Detected auth: {auth_type.value}")
+        if auth_type != AuthType.NONE or login_ep or detected_provider:
+            provider_info = f" (provider: {detected_provider})" if detected_provider else ""
+            logger.info(f"Detected auth: {auth_type.value}{provider_info}")
             return AuthPattern(
                 type=auth_type if auth_type != AuthType.NONE else AuthType.JWT,
                 storage=storage,
@@ -98,6 +181,8 @@ class AuthAnalyzer:
                 login_endpoint=login_ep,
                 logout_endpoint=logout_ep,
                 refresh_endpoint=refresh_ep,
+                protected_routes=list(set(protected_routes))[:20],  # Limit to 20
             )
 
         return None
+

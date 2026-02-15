@@ -132,11 +132,12 @@ class ModelInferenceEngine:
         fields = evidence.metadata.get("fields", [])
 
         for f in fields:
-            field_type = self._map_ts_type(f.get("type", "string"))
+            field_name = f["name"]
+            field_type = self._map_ts_type(f.get("type", "string"), field_name)
 
             candidates.append(
                 FieldCandidate(
-                    name=f["name"],
+                    name=field_name,
                     field_type=field_type,
                     nullable=f.get("nullable", False) or not f.get("required", True),
                     evidence=[evidence],
@@ -152,11 +153,12 @@ class ModelInferenceEngine:
         fields = evidence.metadata.get("fields", [])
 
         for f in fields:
-            field_type = self._map_ts_type(f.get("type", "string"))
+            field_name = f["name"]
+            field_type = self._map_ts_type(f.get("type", "string"), field_name)
 
             candidates.append(
                 FieldCandidate(
-                    name=f["name"],
+                    name=field_name,
                     field_type=field_type,
                     nullable=not f.get("required", True),
                     evidence=[evidence],
@@ -349,9 +351,18 @@ Return only the type name."""
             logger.warning(f"LLM type resolution failed: {e}")
             return InferredFieldType.STRING
 
-    def _map_ts_type(self, ts_type: str) -> InferredFieldType:
-        """Map TypeScript type to field type."""
+    def _map_ts_type(self, ts_type: str, field_name: str = "") -> InferredFieldType:
+        """Map TypeScript type to field type with field name hints."""
         ts_type_lower = ts_type.lower()
+        field_lower = field_name.lower()
+        
+        # Check field name for semantic hints about date/time types
+        if field_lower and any(x in field_lower for x in ['date', 'time', 'at', 'when']):
+            # If it's just "date" without "time", use DATE type
+            if ('date' in field_lower or 'birthday' in field_lower or 'dob' in field_lower) and 'time' not in field_lower and not field_lower.endswith('_at'):
+                return InferredFieldType.DATE
+            # Otherwise use DATETIME for timestamps
+            return InferredFieldType.DATETIME
 
         mapping = {
             "string": InferredFieldType.STRING,
@@ -400,6 +411,7 @@ Return only the type name."""
 
     def _add_common_fields(self, models: list[InferredModel]) -> list[InferredModel]:
         """Add common fields like id, timestamps."""
+        from core.field_normalizer import is_timestamp_field
         for model in models:
             field_names = {f.name for f in model.fields}
 
@@ -415,24 +427,29 @@ Return only the type name."""
                     ),
                 )
 
-            # Add timestamps if enabled
+            #  ALWAYS remove TypeScript-style timestamp fields (createdAt, updatedAt, etc.)
+            # These should never appear in SQL schemas
+            model.fields = [
+                f for f in model.fields 
+                if not is_timestamp_field(f.name)
+            ]
+            
+            # Add proper SQL timestamp fields ONLY if timestamps flag is True
             if model.timestamps:
-                if "createdAt" not in field_names and "created_at" not in field_names:
-                    model.fields.append(
-                        InferredField(
-                            name="createdAt",
-                            field_type=InferredFieldType.DATETIME,
-                            nullable=False,
-                        )
+                model.fields.append(
+                    InferredField(
+                        name="created_at",
+                        field_type=InferredFieldType.DATETIME,
+                        nullable=False,
                     )
-                if "updatedAt" not in field_names and "updated_at" not in field_names:
-                    model.fields.append(
-                        InferredField(
-                            name="updatedAt",
-                            field_type=InferredFieldType.DATETIME,
-                            nullable=False,
-                        )
+                )
+                model.fields.append(
+                    InferredField(
+                        name="updated_at",
+                        field_type=InferredFieldType.DATETIME,
+                        nullable=False,
                     )
+                )
 
         return models
 

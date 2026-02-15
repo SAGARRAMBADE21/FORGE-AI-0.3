@@ -436,6 +436,135 @@ class BackendAgent:
             logger.error(f"Failed to rollback: {e}")
             return False
 
+    async def generate_from_models(
+        self,
+        models: list[InferredModel],
+        relations: list[InferredRelation],
+        progress: Callable[[str, str], None] | None = None,
+    ) -> GenerationResult:
+        """Generate backend using pre-inferred models (skips re-analysis).
+        
+        This is the KEY METHOD that ensures database and backend use THE SAME models.
+        
+        Args:
+            models: Pre-inferred data models from frontend analysis
+            relations: Pre-inferred relationships between models
+            progress: Progress callback
+            
+        Returns:
+            GenerationResult with generated backend files
+        """
+        if not self._initialized:
+            raise RuntimeError("Agent not initialized")
+        
+        if progress:
+            progress("models_received", f"Using {len(models)} pre-inferred models")
+        
+        logger.info(f"Generating backend from {len(models)} provided models")
+        
+        # Ensure architecture exists
+        if not self._architecture:
+            from core.types import BackendArchitecture
+            self._architecture = BackendArchitecture()
+        
+        # Store the provided models (CRITICAL: ensures DB and backend use same models)
+        self._architecture.models = models
+        self._architecture.relations = relations
+        
+        if progress:
+            progress("design", "Designing database schema from provided models...")
+        
+        # Design schema from provided models
+        schema = await self._schema_designer.design_schema(models, relations)
+        self._architecture.schema = schema
+        
+        if progress:
+            progress("api", "Designing API architecture...")
+        
+        # Create API resources from models if not already present
+        if not self._architecture.api_resources:
+            from core.types import ApiResourceContract, ApiEndpointContract
+            api_resources = []
+            for model in models:
+                # Create basic CRUD endpoints for each model
+                resource = ApiResourceContract(
+                    name=model.name,
+                    base_path=f"/{model.name.lower()}",
+                    endpoints=[
+                        ApiEndpointContract(id=f"list_{model.name.lower()}", method="GET", path=f"/{model.name.lower()}"),
+                        ApiEndpointContract(id=f"create_{model.name.lower()}", method="POST", path=f"/{model.name.lower()}"),
+                        ApiEndpointContract(id=f"get_{model.name.lower()}", method="GET", path=f"/{model.name.lower()}/{{id}}"),
+                        ApiEndpointContract(id=f"update_{model.name.lower()}", method="PUT", path=f"/{model.name.lower()}/{{id}}"),
+                        ApiEndpointContract(id=f"delete_{model.name.lower()}", method="DELETE", path=f"/{model.name.lower()}/{{id}}"),
+                    ]
+                )
+                api_resources.append(resource)
+            self._architecture.api_resources = api_resources
+        
+        # Design API architecture
+        api_arch = await self._api_architect.design_architecture(
+            self._architecture.api_resources,
+            models,
+            self._architecture.auth,
+        )
+        
+        if progress:
+            progress("services", "Designing service layer...")
+        
+        # Design services
+        service_arch = await self._service_architect.design_architecture(
+            models,
+            relations,
+            self._architecture.api_resources,
+        )
+        self._architecture.repositories = service_arch.repositories
+        self._architecture.services = service_arch.services
+        
+        if progress:
+            progress("generation", "Generating backend code...")
+        
+        # Generate code using the architecture
+        context = GenerationContext(
+            config=self.config,
+            models=models,
+            relations=relations,
+            api_resources=self._architecture.api_resources,
+            api_architecture=api_arch,
+            service_architecture=service_arch,
+            schema=schema,
+        )
+        
+        generated_files_dict = await self._pipeline.generate(context)
+        
+        # Convert dict to list of GeneratedFile objects
+        from core.types import GeneratedFile
+        generated_files = []
+        for path, content in generated_files_dict.items():
+            file_ext = Path(path).suffix.lstrip(".")
+            generated_files.append(
+                GeneratedFile(
+                    path=path,
+                    content=content,
+                    file_type=file_ext or "txt",
+                    generator="backend_agent",
+                )
+            )
+        
+        if progress:
+            progress("complete", f"Generated {len(generated_files)} files")
+        
+        logger.info(f"Backend generation complete: {len(generated_files)} files")
+        
+        return GenerationResult(
+            success=True,
+            files=generated_files,
+            stats={
+                "models_used": len(models),
+                "relations_used": len(relations),
+                "files_generated": len(generated_files),
+            },
+        )
+
     # ═══════════════════════════════════════════════════════════════════════
     # ACTION HANDLERS
     # ═══════════════════════════════════════════════════════════════════════

@@ -1,0 +1,13 @@
+{
+    "name": "forge-typescript-analyzer",
+    "version": "1.0.0",
+    "description": "TypeScript AST analyzer for FORGE",
+    "private": true,
+    "dependencies": {
+        "ts-morph": "^21.0.1",
+        "typescript": "^5.3.3"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    }
+}

@@ -78,7 +78,7 @@ class ApiArchitect:
         validation_schemas = {}
         global_middleware = ["errorHandler", "requestLogger"]
 
-        if auth.strategy.value != "none":
+        if auth and hasattr(auth, 'strategy') and auth.strategy.value != "none":
             global_middleware.insert(0, "cors")
 
         for resource in resources:
@@ -95,7 +95,7 @@ class ApiArchitect:
             validation_schemas.update(schemas)
 
         # Add auth routes if needed
-        if auth.strategy.value != "none":
+        if auth and hasattr(auth, 'strategy') and auth.strategy.value != "none":
             auth_controller, auth_routes = self._design_auth_routes(auth)
             controllers.append(auth_controller)
             routes.extend(auth_routes)
@@ -268,7 +268,7 @@ class ApiArchitect:
         ]
 
         # Add refresh token if JWT
-        if auth.strategy.value in ("jwt", "hybrid"):
+        if auth and hasattr(auth, 'strategy') and auth.strategy.value in ("jwt", "hybrid"):
             methods.append(
                 {
                     "name": "refresh",
@@ -280,25 +280,26 @@ class ApiArchitect:
             )
 
         # Add OAuth routes
-        for provider in auth.oauth_providers:
-            methods.extend(
-                [
-                    {
-                        "name": f"{provider.name}Auth",
-                        "http_method": "GET",
-                        "path": f"/oauth/{provider.name}",
-                        "description": f"Initiate {provider.name} OAuth",
-                        "auth_required": False,
-                    },
-                    {
-                        "name": f"{provider.name}Callback",
-                        "http_method": "GET",
-                        "path": f"/oauth/{provider.name}/callback",
-                        "description": f"{provider.name} OAuth callback",
-                        "auth_required": False,
-                    },
-                ]
-            )
+        if auth and hasattr(auth, 'oauth_providers'):
+            for provider in auth.oauth_providers:
+                methods.extend(
+                    [
+                        {
+                            "name": f"{provider.name}Auth",
+                            "http_method": "GET",
+                            "path": f"/oauth/{provider.name}",
+                            "description": f"Initiate {provider.name} OAuth",
+                            "auth_required": False,
+                        },
+                        {
+                            "name": f"{provider.name}Callback",
+                            "http_method": "GET",
+                            "path": f"/oauth/{provider.name}/callback",
+                            "description": f"{provider.name} OAuth callback",
+                            "auth_required": False,
+                        },
+                    ]
+                )
 
         controller = ControllerDefinition(
             name="AuthController",

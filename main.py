@@ -4,9 +4,13 @@ import asyncio
 import json
 import logging
 import os
+import warnings
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+# Suppress pydantic field shadowing warnings
+warnings.filterwarnings("ignore", message=".*Field name.*shadows an attribute.*")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,9 +45,11 @@ from cli.ui import (
 from config.templates_config import BackendFramework, DatabaseType, TemplateConfig
 from execution.agentic_loop import AgenticLoop
 from fullstack_agent import FullStackAgent
+from unified_workflow import generate_synchronized_fullstack
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def show_banner():
@@ -69,11 +75,36 @@ backend_app = typer.Typer(
     help="⚙️ [cyan]Backend generation[/] - Generate, review, and debug backend code",
     rich_markup_mode="rich",
 )
+database_app = typer.Typer(
+    help="🗄️ [cyan]Database generation[/] - Generate schemas from frontend analysis",
+    rich_markup_mode="rich",
+)
 app.add_typer(index_app, name="index")
 app.add_typer(backend_app, name="backend")
+app.add_typer(database_app, name="database")
 
 # Cache for agents to avoid re-initialization
 _agent_cache = {}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def validate_path(path: Path, description: str = "Path") -> bool:
+    """Validate path exists and show consistent error message."""
+    if not path.exists():
+        console.print(f"[red]Error: {description} not found:[/] {path}")
+        return False
+    return True
+
+
+def create_progress_callback(console: Console, task_description: str = "Processing..."):
+    """Create a reusable progress callback for operations."""
+    def callback(stage: str, msg: str):
+        console.print(f"[cyan]{stage}:[/] {msg}")
+    return callback
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -87,8 +118,8 @@ def index_run(
     watch: bool = typer.Option(False, "--watch", "-w", help="Watch for changes"),
 ):
     """Index a project with semantic search capabilities."""
-    if not path.exists():
-        console.print(f"[red]Error: Path not found: {path}[/]")
+    # Validate path
+    if not validate_path(path, "Project path"):
         raise typer.Exit(1)
 
     agent = CodeAgent(path)
@@ -199,8 +230,8 @@ def backend_generate(
       multi  - Production multi-agent mode (5-10 min, 8 specialized agents)
       hybrid - Auto-select based on project complexity (default)
     """
-    if not path.exists():
-        console.print(f"[red]Error: Path not found: {path}[/]")
+    # Validate path
+    if not validate_path(path, "Frontend path"):
         raise typer.Exit(1)
 
     # Parse generation mode
@@ -251,6 +282,9 @@ def backend_generate(
     if result.success:
         console.print(f"\n[green]✓ Backend generation complete![/]")
 
+        # Initialize complexity for later use
+        complexity = None
+        
         # Show mode used
         if generation_mode == GenerationMode.HYBRID:
             complexity = agent.backend_agent._assess_project_complexity()
@@ -325,10 +359,17 @@ def backend_generate(
 
 @backend_app.command("analyze")
 def backend_analyze(
-    path: Path = typer.Argument(..., help="Project path"),
+    path: Path = typer.Argument(..., help="Frontend project path"),
     reindex: bool = typer.Option(False, "--reindex", help="Force re-indexing"),
 ):
-    """Analyze frontend and show inferred backend architecture."""
+    """Analyze frontend and show inferred backend architecture.
+    
+    This command analyzes your frontend code and shows what backend
+    structure would be generated, without creating any files.
+    """
+    if not validate_path(path, "Frontend path"):
+        raise typer.Exit(1)
+
     agent = FullStackAgent(path)
 
     # Check if already indexed
@@ -775,6 +816,7 @@ Provide:
 
         # If fix mode, extract and apply the fixed code
         fixed_applied = False
+        backup_path = None
         if fix and target_file_path:
             prog.update(task, description="Extracting fixed code...")
 
@@ -915,6 +957,7 @@ Return the complete fixed file in a ```fixed block."""
         if not fixed_match:
             fixed_match = re.search(r"```\n(.*?)```", result, re.DOTALL)
 
+        backup_path = None
         if fixed_match:
             fixed_code = fixed_match.group(1).strip()
 
@@ -937,6 +980,65 @@ Return the complete fixed file in a ```fixed block."""
         console.print(f"[dim]  Backup: {backup_path}[/]")
     else:
         console.print(f"\n[yellow]⚠ Could not extract fixed code[/]")
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EDIT COMMAND - Universal NLP-powered editor
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@app.command()
+def edit_console(
+    file: str = typer.Argument(None, help="File to edit (optional)"),
+    workspace: Path = typer.Option(".", "-w", "--workspace", help="Workspace directory"),
+):
+    """
+    🔧 Interactive NLP-powered edit console for ALL FORGE outputs
+    
+    Edit schemas, backend code, APIs, models, and configs using natural language!
+    
+    Examples:
+        forge edit-console schema.sql                    # Load schema and start editing
+        forge edit-console                               # Start console first, load later
+        
+    Natural language commands:
+        "rename table users to accounts"
+        "change email field to VARCHAR(255)"
+        "make password field required"
+        "add error handling to createUser function"
+    """
+    from edit_console import EditConsole
+    from config.settings import settings
+    from generation.llm_generator import LLMGenerator
+    
+    console.print()
+    
+    # Initialize LLM for NLP parsing
+    try:
+        llm_client = LLMGenerator(
+            provider=settings.llm.backend_provider,
+            model=settings.llm.backend_model
+        )
+    except Exception as e:
+        console.print(f"[yellow]Warning: LLM not available ({e})[/]")
+        console.print("[dim]Will use pattern-based parsing as fallback[/]")
+        llm_client = None
+    
+    # Create and run console
+    edit_console_obj = EditConsole(workspace_path=str(workspace), llm_client=llm_client)
+    
+    # Load file if provided
+    if file:
+        try:
+            edit_console_obj._handle_load(file)
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not load {file}: {e}[/]")
+            console.print(f"[dim]You can load it manually with: load {file}[/]")
+    
+    # Run interactive console
+    edit_console_obj.run()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1219,8 +1321,25 @@ def edit(
 def chat(
     path: Path = typer.Argument(None, help="Codebase path to index and chat about"),
     file: str = typer.Option(None, "-f", "--file", help="Current file context"),
+    task_mode: bool = typer.Option(True, "--task/--no-task", help="Enable task execution"),
 ):
-    """Interactive chat with the code agent - provide a codebase path to index."""
+    """
+    🔮 Interactive task chat - execute backend tasks via natural language.
+    
+    SLASH COMMANDS:
+        /generate <path>      Generate backend from frontend
+        /add endpoint <spec>  Add new API endpoint  
+        /add model <name>     Add new data model
+        /add auth [type]      Add authentication
+        /search <query>       Search codebase
+        /help                 Show all commands
+    
+    Examples:
+        forge chat ./my-project
+        forge chat ./backend --no-task
+    """
+    from cli.ui import print_chat_commands, print_task_callback, print_task_result
+    from orchestration.task_chat import TaskChat
     
     # Create session tracker for Gemini-style exit summary
     session = SessionTracker()
@@ -1241,14 +1360,7 @@ def chat(
                     if message.lower().strip() in ("/exit", "/quit", "/q"):
                         break
                     elif message.lower().strip() == "/help":
-                        console.print("\n[dim]No-index mode - Limited commands:[/]")
-                        console.print(f"  [{COLORS['file_cyan']}]/exit[/] - Exit chat")
-                        console.print(
-                            "\n[dim]Tip: Provide a codebase path to enable full features:[/]"
-                        )
-                        console.print(
-                            "[dim]  python main.py chat <path-to-your-codebase>[/]"
-                        )
+                        print_chat_commands(console)
                     else:
                         console.print(
                             "[dim]Command not available in no-index mode[/]"
@@ -1289,10 +1401,21 @@ def chat(
         asyncio.run(agent.initialize())
         session.record_tool_call(success=True)
 
-    console.print(f"[{COLORS['success_green']}]✓[/] Codebase indexed successfully\n")
+    console.print(f"[{COLORS['success_green']}]✓[/] Codebase indexed successfully")
+    
+    # Initialize TaskChat if task mode enabled
+    task_chat = None
+    if task_mode:
+        task_chat = TaskChat(path, agent=agent)
+        console.print(f"[{COLORS['success_green']}]✓[/] Task mode enabled - use /help for commands\n")
+    else:
+        console.print("[dim]Task mode disabled - Q&A only\n[/]")
 
     # Chat history
     history = []
+    
+    # Task callback for progress
+    callback = print_task_callback(console)
 
     while True:
         try:
@@ -1302,12 +1425,52 @@ def chat(
             if not message:
                 continue
 
-            # Handle special commands
+            # Handle slash commands and tasks
             if message.startswith("/"):
-                if _handle_special_command(message, console, agent, history, file, session):
+                if message.lower().strip() in ("/exit", "/quit", "/q"):
+                    break
+                elif message.lower().strip() == "/help":
+                    print_chat_commands(console)
+                    continue
+                elif task_mode and task_chat:
+                    # Route to TaskChat
+                    with console.status(f"[{COLORS['warning_yellow']}]![/] Processing..."):
+                        response = asyncio.run(task_chat.process(message, callback))
+                        session.record_tool_call(success=response.task_result.success if response.task_result else True)
+                    
+                    if response.is_task and response.task_result:
+                        result = response.task_result
+                        if result.data.get("needs_approval"):
+                            console.print()
+                            console.print(response.message)
+                            approval = console.input(f"\n[{COLORS['prompt_gray']}]>[/] Execute? ([cyan]y[/]/[red]n[/]): ").strip().lower()
+                            if approval != "y":
+                                console.print("[yellow]Cancelled[/]")
+                        else:
+                            print_task_result(console, result.success, result.message if result.success else "Task failed")
+                    else:
+                        print_agent_response(console, response.message)
                     continue
                 else:
-                    break
+                    if _handle_special_command(message, console, agent, history, file, session):
+                        continue
+                    else:
+                        break
+            
+            # Check for task-like natural language
+            if task_mode and task_chat:
+                is_task_like = any(kw in message.lower() for kw in ["add", "create", "generate", "remove", "update", "fix"])
+                if is_task_like:
+                    with console.status(f"[{COLORS['warning_yellow']}]![/] Processing..."):
+                        response = asyncio.run(task_chat.process(message, callback))
+                    if response.is_task:
+                        console.print()
+                        console.print(response.message)
+                        if response.task_result and response.task_result.data.get("needs_approval"):
+                            approval = console.input(f"\n[{COLORS['prompt_gray']}]>[/] Execute? ([cyan]y[/]/[red]n[/]): ").strip().lower()
+                            if approval != "y":
+                                console.print("[yellow]Cancelled[/]")
+                        continue
 
             # Add to history
             history.append({"role": "user", "content": message})
@@ -1321,7 +1484,6 @@ def chat(
             with console.status(f"[{COLORS['warning_yellow']}]![/] Searching codebase..."):
                 response = asyncio.run(agent.chat(message, file))
                 session.record_tool_call(success=True)
-                # Estimate tokens (rough approximation)
                 session.record_tokens(
                     input_tokens=len(message.split()) * 2,
                     output_tokens=len(response.get("response", "").split()) * 2,
@@ -1348,6 +1510,235 @@ def chat(
 
     # Print Gemini-style session summary on exit
     print_session_summary(console, session)
+
+
+@app.command()
+def fullstack(
+    frontend_path: Path = typer.Argument(..., help="Path to frontend project"),
+    output_dir: Path = typer.Option(
+        None, "-o", "--output", help="Output directory (defaults to frontend path)"
+    ),
+    db_type: str = typer.Option(
+        "mysql",
+        "-d",
+        "--database",
+        help="Database type (postgresql, mysql, mongodb, sqlite)",
+    ),
+    backend_framework: str = typer.Option(
+        "fastapi",
+        "-b",
+        "--backend",
+        help="Backend framework (fastapi, django, express, flask)",
+    ),
+    plan_only: bool = typer.Option(
+        False, "--plan", "-p", help="Show plan and exit without generating"
+    ),
+    auto_approve: bool = typer.Option(
+        False, "--yes", "-y", help="Auto-approve plan without prompting"
+    ),
+):
+    """
+    Generate synchronized fullstack application with real-time planning.
+    
+    PROCESS:
+    1. 🔮 Real-time Planning → LLM analyzes frontend and builds plan
+    2. ✓ User Approval → Review and modify plan before generation
+    3. ⚡ Generate → Database + Backend with synchronized models
+    
+    FLAGS:
+        --plan, -p    Show plan only (no generation)
+        --yes, -y     Auto-approve plan
+    
+    Examples:
+        # Interactive planning (recommended)
+        forge fullstack ./frontend-app
+        
+        # Preview plan without generating
+        forge fullstack ./frontend-app --plan
+        
+        # Auto-approve for CI/automation
+        forge fullstack ./frontend-app --yes
+    """
+    from cli.ui import LivePlanDisplay, print_plan_summary, print_plan_prompt, print_generation_start
+    from orchestration.realtime_planner import RealtimePlanner
+    
+    # Validate frontend path
+    if not validate_path(frontend_path, "Frontend path"):
+        raise typer.Exit(1)
+    
+    # Set default output directory to frontend path if not specified
+    if output_dir is None:
+        output_dir = frontend_path
+
+    # Validate database and backend framework
+    valid_databases = ["postgresql", "mysql", "mongodb", "sqlite"]
+    valid_backends = ["fastapi", "django", "express", "flask"]
+    
+    if db_type.lower() not in valid_databases:
+        console.print(f"[red]Error: Invalid database type:[/] {db_type}")
+        console.print(f"[dim]Valid options: {', '.join(valid_databases)}[/]")
+        raise typer.Exit(1)
+    
+    if backend_framework.lower() not in valid_backends:
+        console.print(f"[red]Error: Invalid backend framework:[/] {backend_framework}")
+        console.print(f"[dim]Valid options: {', '.join(valid_backends)}[/]")
+        raise typer.Exit(1)
+
+    # Create output directory
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        console.print(f"[red]Error: Failed to create output directory:[/] {e}")
+        raise typer.Exit(1)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # PHASE 0: REAL-TIME PLANNING
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    config = {
+        "database": db_type,
+        "framework": backend_framework,
+        "output_dir": str(output_dir),
+    }
+    
+    planner = RealtimePlanner(frontend_path, config)
+    display = LivePlanDisplay(console)
+    
+    try:
+        # Start planning display
+        display.start()
+        
+        # Create plan with streaming updates
+        plan = asyncio.run(planner.create_plan_streaming(display.update))
+        
+        display.stop()
+        
+        # Show plan summary
+        print_plan_summary(console, plan)
+        
+        # If plan-only mode, exit here
+        if plan_only:
+            console.print("\n[dim]Plan-only mode: exiting without generation[/]")
+            raise typer.Exit(0)
+        
+        # Interactive approval loop (unless auto-approve)
+        if not auto_approve:
+            while True:
+                response = print_plan_prompt(console)
+                
+                if response.lower() == "y":
+                    break
+                elif response.lower() == "n":
+                    console.print("[yellow]Generation cancelled[/]")
+                    raise typer.Exit(0)
+                else:
+                    # User typed a modification request
+                    console.print()
+                    asyncio.run(planner.add_component(response, display.update))
+                    print_plan_summary(console, planner.plan)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # PHASE 1-3: EXECUTE GENERATION
+        # ═══════════════════════════════════════════════════════════════════
+        
+        print_generation_start(console)
+        
+        # Progress callback for UI updates
+        def progress_callback(phase: str, description: str):
+            console.print(f"[cyan]{phase}:[/] {description}")
+
+        # Run the synchronized workflow
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Generating fullstack application...", total=None)
+
+            result = asyncio.run(
+                generate_synchronized_fullstack(
+                    frontend_path=str(frontend_path),
+                    output_dir=str(output_dir),
+                    db_type=db_type,
+                    backend_framework=backend_framework,
+                    plan=planner.plan,  # Pass the approved plan
+                    callback=progress_callback,
+                )
+            )
+
+            progress.update(task, completed=True)
+
+        # Display results
+        if result["success"]:
+            logger.info(f"Fullstack generation completed: {result['backend'].get('files_created', 0)} backend files, {len(result['database'].get('files', {}))} database files")
+            console.print()
+            console.print("[bold green]✓ Generation Complete![/]\n")
+
+            # Models summary
+            models_count = len(result["models"])
+            relations_count = len(result["relations"])
+            console.print(
+                Panel(
+                    f"[white]Models Discovered:[/] {models_count}\n"
+                    f"[white]Relationships:[/] {relations_count}\n"
+                    f"[white]Database Files:[/] {len(result['database'].get('files', {}))}\n"
+                    f"[white]Backend Files:[/] {result['backend'].get('files_created', 0)}\n\n"
+                    f"[bold {'green' if result['synchronized'] else 'yellow'}]"
+                    f"{'✓ Synchronized!' if result['synchronized'] else '⚠ Verification Failed'}[/]",
+                    title="[bold cyan]Generation Summary[/]",
+                    border_style="green",
+                )
+            )
+
+            # Show output structure
+            console.print("\n[bold]Generated Files:[/]")
+            tree = Tree(f"📁 {output_dir}")
+            
+            db_tree = tree.add("📁 database")
+            for file_type, file_path in result["database"].get("files", {}).items():
+                if file_path:
+                    db_tree.add(f"📄 {Path(file_path).name}")
+
+            backend_tree = tree.add("📁 backend")
+            files_created = result['backend'].get('files_created', 0)
+            if files_created > 0:
+                backend_tree.add(f"📄 {files_created} files (app/core/, app/models/, app/schemas/, etc.)")
+            else:
+                backend_tree.add("[dim]No files created[/]")
+
+            console.print(tree)
+            console.print()
+
+            # Next steps
+            console.print(
+                Panel(
+                    "[bold]Next Steps:[/]\n\n"
+                    f"1. Review schema: [cyan]{output_dir}/database/schema.sql[/]\n"
+                    f"2. Run migrations: [cyan]cd {output_dir}/database && psql < schema.sql[/]\n"
+                    f"3. Start backend: [cyan]cd {output_dir}/backend && python main.py[/]\n"
+                    f"4. Seed data: [cyan]{output_dir}/database/seeds/[/]",
+                    title="[bold green]✓ Ready to Deploy[/]",
+                    border_style="green",
+                )
+            )
+
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            console.print(f"\n[red]✗ Generation failed:[/] {error_msg}")
+            logger.error(f"Fullstack generation failed: {error_msg}")
+            raise typer.Exit(1)
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]! Generation cancelled by user[/]")
+        logger.info("Fullstack generation cancelled")
+        raise typer.Exit(130)
+    except typer.Exit:
+        raise
+    except Exception as e:
+        logger.exception("Fullstack generation failed")
+        console.print(f"\n[red]Error: Unexpected error:[/] {e}")
+        console.print("\n[dim]Run with DEBUG=1 for detailed logs[/]")
+        raise typer.Exit(1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1479,11 +1870,16 @@ def _enter_post_generation_edit(backend_path: Path, agent, console: Console):
     # Create session tracker
     session = SessionTracker()
     
+    # Initialize LLM generator for edit mode
+    from generation.llm_generator import LLMGenerator
+    llm_gen = LLMGenerator()
+    
     # Create agentic loop with the agent for context
     loop = AgenticLoop(
         project_path=backend_path,
         console=console,
         agent=agent,
+        llm_generator=llm_gen,
     )
     
     # Main edit loop
@@ -1718,6 +2114,413 @@ def _display_agent_response(console, response: dict):
             print_context_info(console, f"Using context: {context}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# DATABASE GENERATION COMMANDS  
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@database_app.command("generate")
+def database_generate(
+    frontend_path: Path = typer.Argument(..., help="Frontend project path to analyze"),
+    output_dir: Path = typer.Option(
+        None,
+        "-o",
+        "--output",
+        help="Output directory for database schemas (default: <frontend_path>/database)",
+    ),
+    db_type: str = typer.Option(
+        "postgresql",
+        "-d",
+        "--database",
+        help="Database type: postgresql, mysql, mongodb, sqlite, mariadb",
+    ),
+    records: int = typer.Option(
+        10, "-r", "--records", help="Number of seed data records per model"
+    ),
+):
+    """Generate complete database from frontend analysis.
+    
+    Workflow:
+      1. Analyze frontend components and forms
+      2. Infer data models and relationships  
+      3. Generate database schema (SQL/NoSQL)
+      4. Create migrations
+      5. Generate seed data
+      
+    Example:
+      forge database generate ./frontend -d postgresql -o ./db_output
+    """
+    if not frontend_path.exists():
+        console.print(f"[red]Error: Frontend path not found: {frontend_path}[/]")
+        raise typer.Exit(1)
+
+    # Set default output directory to frontend_path/database if not specified
+    if output_dir is None:
+        output_dir = frontend_path / "database"
+
+    console.print("\n[bold cyan]🗄️  FORGE Database Generator[/]\n")
+    console.print(f"[cyan]Frontend:[/] {frontend_path}")
+    console.print(f"[cyan]Database:[/] {db_type.upper()}")
+    console.print(f"[cyan]Output:[/] {output_dir}\n")
+
+    with Progress(
+        SpinnerColumn(), TextColumn("{task.description}"), console=console
+    ) as prog:
+        task = prog.add_task("Initializing...", total=None)
+
+        def callback(stage, msg):
+            prog.update(task, description=f"[cyan]{stage}[/]: {msg}")
+
+        # Import and initialize
+        from config.settings import settings
+        from database_generation.orchestrator import DatabaseOrchestrator
+
+        orchestrator = DatabaseOrchestrator(frontend_path, output_dir, settings)
+
+        # Generate database
+        result = asyncio.run(
+            orchestrator.generate_database(
+                db_type=db_type,
+                skip_frontend=False,
+                records_per_model=records,
+                callback=callback,
+            )
+        )
+
+        prog.update(task, description="[green]✓ Generation complete![/]")
+
+    # Display results
+    if result["success"]:
+        console.print("\n[green]✅ Database generated successfully![/]\n")
+
+        summary = Table(show_header=False, box=None, padding=(0, 2))
+        summary.add_column("Item", style="cyan bold")
+        summary.add_column("Value", style="white")
+
+        summary.add_row("📁 Output Directory", str(output_dir))
+        summary.add_row("🗄️  Database Type", db_type.upper())
+        summary.add_row("📊 Models Generated", str(len(result["models"])))
+        summary.add_row("🔗 Relationships", str(len(result["relations"])))
+
+        if "schema" in result["files"]:
+            schema_files = result["files"]["schema"]
+            if isinstance(schema_files, dict):
+                summary.add_row("📝 Schema Files", ", ".join(schema_files.keys()))
+            else:
+                summary.add_row("📝 Schema File", schema_files.name)
+
+        if "migration" in result["files"]:
+            summary.add_row("🔄 Migration", result["files"]["migration"].name)
+
+        if "seeds" in result["files"]:
+            summary.add_row(
+                "🌱 Seed Files", f"{len(result['files']['seeds'])} models"
+            )
+
+        console.print(Panel(summary, title="[bold]Generation Summary[/]", border_style="green"))
+
+        # Show next steps
+        console.print("\n[bold yellow]Next Steps:[/]")
+        console.print(f"  1. Review schema: {output_dir}/schema.sql")
+        console.print(f"  2. Create database:")
+        console.print(f'     [dim]forge database create "{output_dir}/schema.sql" -c "postgresql://user:pass@localhost" -n mydb[/]')
+        console.print(f"  3. Load seed data:")
+        console.print(f'     [dim]forge database seed "{output_dir}/seeds" -c "postgresql://user:pass@localhost" -n mydb[/]')
+
+    else:
+        console.print("[red]❌ Generation failed![/]")
+        for error in result["errors"]:
+            console.print(f"  [red]• {error}[/]")
+        raise typer.Exit(1)
+
+
+@database_app.command("create")
+def database_create(
+    schema_path: Path = typer.Argument(..., help="Path to schema.sql file"),
+    connection_string: str = typer.Option(
+        ..., "-c", "--connection", help='Database connection string (e.g., "postgresql://user:pass@localhost")'
+    ),
+    db_name: str = typer.Option(..., "-n", "--name", help="Database name to create"),
+):
+    """Create actual database from generated schema.
+    
+    Example:
+      forge database create schema.sql -c "postgresql://user:pass@localhost" -n myapp_db
+    """
+    if not schema_path.exists():
+        console.print(f"[red]Error: Schema file not found: {schema_path}[/]")
+        raise typer.Exit(1)
+
+    console.print(f"\n[cyan]Creating database:[/] {db_name}")
+    console.print(f"[cyan]Using schema:[/] {schema_path}\n")
+
+    with console.status("[cyan]Creating database...[/]"):
+        from database_generation.database_manager import DatabaseManager
+
+        db_manager = DatabaseManager(connection_string)
+
+        # Create database
+        asyncio.run(db_manager.create_database(db_name))
+
+        # Execute schema
+        with open(schema_path, "r", encoding="utf-8") as f:
+            schema_sql = f.read()
+
+        asyncio.run(db_manager.connect(db_name))
+        asyncio.run(db_manager.execute_sql(schema_sql))
+        asyncio.run(db_manager.close())
+
+    console.print(f"\n[green]✅ Database '{db_name}' created successfully![/]")
+
+
+@database_app.command("seed")
+def database_seed(
+    seed_path: Path = typer.Argument(..., help="Path to seed data directory"),
+    connection_string: str = typer.Option(
+        ..., "-c", "--connection", help='Database connection string (e.g., "postgresql://user:pass@localhost")'
+    ),
+    db_name: str = typer.Option(..., "-n", "--name", help="Database name"),
+):
+    """Load seed data into database.
+    
+    Example:
+      forge database seed ./seeds -c "postgresql://user:pass@localhost" -n myapp_db
+    """
+    if not seed_path.exists():
+        console.print(f"[red]Error: Seed data path not found: {seed_path}[/]")
+        raise typer.Exit(1)
+
+    console.print(f"\n[cyan]Loading seed data into:[/] {db_name}\n")
+
+    with console.status("[cyan]Loading seed data...[/]"):
+        from database_generation.database_manager import DatabaseManager
+
+        db_manager = DatabaseManager(connection_string)
+        asyncio.run(db_manager.connect(db_name))
+
+        # Execute all seed files
+        for seed_file in sorted(seed_path.glob("*.sql")):
+            console.print(f"  [dim]Loading: {seed_file.name}[/]")
+            with open(seed_file, "r", encoding="utf-8") as f:
+                seed_sql = f.read()
+            asyncio.run(db_manager.execute_sql(seed_sql))
+
+        asyncio.run(db_manager.close())
+
+    console.print(f"\n[green]✅ Seed data loaded successfully![/]")
+
+
+@database_app.command("chat")
+def database_chat(
+    frontend_path: Path = typer.Argument(..., help="Path to frontend project"),
+    db_type: DatabaseType = typer.Option(DatabaseType.POSTGRESQL, "-t", "--type", help="Database type"),
+):
+    """Interactive chat mode for database schema design.
+    
+    Chat with AI agents to design optimal database schemas. Get expert advice
+    from LeadArchitect, DataModeler, DBAExpert, and SQLWriter agents.
+    
+    Example:
+      forge database chat ./frontend -t postgresql
+    """
+    if not frontend_path.exists():
+        console.print(f"[red]Error: Frontend path not found: {frontend_path}[/]")
+        raise typer.Exit(1)
+    
+    console.print("\n[bold cyan]🤖 Database Design Chat Mode[/]\n")
+    console.print("[dim]Chat with AI agents to design your database schema[/]\n")
+    
+    from database_generation.chat import ChatAssistant, ChatSession
+    import uuid
+    
+    # Create assistant and session with proper API
+    assistant = ChatAssistant(use_ai=True)
+    session = assistant.create_session()
+    session.target_database = db_type.value
+    
+    console.print("[yellow]Type 'help' for commands, 'exit' to quit[/]\n")
+    
+    while True:
+        try:
+            user_input = typer.prompt("\n💬 You", default="")
+            if user_input.lower() in ["exit", "quit", "q"]:
+                console.print("\n[cyan]Goodbye! 👋[/]")
+                break
+            
+            if not user_input.strip():
+                continue
+                
+            response = assistant.chat(user_input, session)
+            console.print(f"\n[bold green]🤖 Assistant:[/] {response.get('message', 'No response')}\n")
+            
+        except KeyboardInterrupt:
+            console.print("\n\n[cyan]Goodbye! 👋[/]")
+            break
+        except Exception as e:
+            console.print(f"\n[red]Error: {e}[/]")
+
+
+@database_app.command("edit")
+def database_edit(
+    schema_path: Path = typer.Argument(..., help="Path to schema JSON file"),
+    interactive: bool = typer.Option(True, "-i", "--interactive", help="Interactive editing mode"),
+):
+    """Edit database schema interactively.
+    
+    Visual schema editor with validation, suggestions, and real-time feedback.
+    
+    Example:
+      forge database edit ./schema.json -i
+    """
+    if not schema_path.exists():
+        console.print(f"[red]Error: Schema file not found: {schema_path}[/]")
+        raise typer.Exit(1)
+    
+    console.print("\n[bold cyan]📝 Schema Editor[/]\n")
+    
+    from database_generation.editor import SchemaEditor, InteractiveEditor
+    from database_generation.db_types import ForgeSchema
+    
+    with open(schema_path, "r", encoding="utf-8") as f:
+        schema_data = json.load(f)
+    
+    # Convert dict to ForgeSchema if needed
+    if isinstance(schema_data, dict):
+        schema = ForgeSchema(**schema_data)
+    else:
+        schema = schema_data
+    
+    editor = SchemaEditor(schema)
+    
+    if interactive:
+        interactive_editor = InteractiveEditor(schema)
+        interactive_editor.run()
+    else:
+        # Show schema summary
+        console.print(f"[dim]Schema: {len(schema.entities)} entities[/]")
+        for entity in schema.entities[:5]:
+            console.print(f"  - {entity.name}: {len(entity.fields)} fields")
+    
+    # Save changes
+    save = typer.confirm("\n💾 Save changes?")
+    if save:
+        with open(schema_path, "w", encoding="utf-8") as f:
+            json.dump(schema.model_dump(), f, indent=2, default=str)
+        console.print(f"\n[green]✅ Schema saved to {schema_path}[/]")
+
+
+@database_app.command("optimize")
+def database_optimize(
+    schema_path: Path = typer.Argument(..., help="Path to schema JSON file"),
+    db_type: DatabaseType = typer.Option(DatabaseType.POSTGRESQL, "-t", "--type", help="Database type"),
+    output: Path = typer.Option(None, "-o", "--output", help="Output path for optimized schema"),
+):
+    """AI-powered schema optimization.
+    
+    Use AI to analyze and optimize database schema for performance,
+    normalization, indexing, and best practices.
+    
+    Example:
+      forge database optimize ./schema.json -t postgresql -o ./schema_optimized.json
+    """
+    if not schema_path.exists():
+        console.print(f"[red]Error: Schema file not found: {schema_path}[/]")
+        raise typer.Exit(1)
+    
+    console.print("\n[bold cyan]🚀 AI Schema Optimization[/]\n")
+    
+    from database_generation.engine import AIEngine, SchemaBuilder
+    from database_generation.db_types import DatabaseType as DBType
+    
+    with console.status("[cyan]Loading schema...[/]"):
+        with open(schema_path, "r", encoding="utf-8") as f:
+            schema_data = json.load(f)
+    
+    # Convert to ForgeSchema
+    if isinstance(schema_data, dict):
+        from database_generation.db_types import ForgeSchema
+        schema = ForgeSchema(**schema_data)
+    else:
+        schema = schema_data
+    
+    with console.status("[cyan]Analyzing schema with AI...[/]"):
+        # Build schema for target database
+        builder = SchemaBuilder()
+        db_enum = DBType(db_type.value.lower())
+        result = builder.build(schema, db_enum)
+        
+        console.print(f"\n[green]✅ Schema built for {db_type.value}[/]")
+        console.print(f"[dim]Entities: {result.entities_count}, Indexes: {result.indexes_count}[/]")
+        
+        if result.warnings:
+            console.print("\n[yellow]⚠️  Warnings:[/]")
+            for warning in result.warnings:
+                console.print(f"  - {warning}")
+        
+        # Show DDL preview
+        if result.ddl:
+            console.print("\n[bold cyan]Generated DDL (preview):[/]")
+            console.print(result.ddl[:500] + "..." if len(result.ddl) > 500 else result.ddl)
+    
+    # Save schema
+    output_path = output or schema_path.parent / f"{schema_path.stem}_generated.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(schema.model_dump(), f, indent=2, default=str)
+    
+    console.print(f"\n[green]✅ Schema saved to {output_path}[/]")
+
+
+@database_app.command("mcp")
+def database_mcp(
+    action: str = typer.Argument(..., help="Action: start, stop, status"),
+    db_type: str = typer.Option("postgresql", "-t", "--type", help="Database type: postgresql, mysql, mongodb"),
+    port: int = typer.Option(5000, "-p", "--port", help="MCP server port"),
+):
+    """Manage Model Context Protocol (MCP) servers.
+    
+    Start MCP servers for database integration with AI agents and external tools.
+    
+    Examples:
+      forge database mcp start -t postgresql -p 5000
+      forge database mcp status
+      forge database mcp stop
+    """
+    from database_generation.mcp import MCPHub
+    
+    hub = MCPHub()
+    
+    if action == "start":
+        console.print(f"\n[cyan]Starting MCP server for {db_type}...[/]\n")
+        asyncio.run(hub.start_server(db_type, port))
+        console.print(f"\n[green]✅ MCP server running on port {port}[/]")
+        
+    elif action == "stop":
+        console.print(f"\n[cyan]Stopping MCP servers...[/]\n")
+        asyncio.run(hub.stop_all())
+        console.print(f"\n[green]✅ All MCP servers stopped[/]")
+        
+    elif action == "status":
+        status = asyncio.run(hub.get_status())
+        console.print("\n[bold cyan]MCP Server Status:[/]\n")
+        
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("Database")
+        table.add_column("Status")
+        table.add_column("Port")
+        
+        for db, info in status.items():
+            table.add_row(
+                db,
+                "[green]Running[/]" if info["running"] else "[dim]Stopped[/]",
+                str(info.get("port", "-"))
+            )
+        
+        console.print(table)
+    else:
+        console.print(f"[red]Unknown action: {action}[/]")
+        console.print("[yellow]Available actions: start, stop, status[/]")
+
+
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
     """🚀 FORGE - AI-Powered Full-Stack Code Generation System"""
@@ -1736,6 +2539,21 @@ def main(ctx: typer.Context):
         commands_table.add_row("help [section]", "Detailed help & documentation")
         commands_table.add_row("init [path]", "Initialize new project")
         commands_table.add_row("status [path]", "Show project status")
+        commands_table.add_row("", "")
+
+        # Database Generation  
+        commands_table.add_row("[bold yellow]Database Generation[/]", "")
+        commands_table.add_row(
+            "database generate <path>", "Generate schema from frontend"
+        )
+        commands_table.add_row(
+            "database create <schema>", "Create database from schema"
+        )
+        commands_table.add_row("database seed <path>", "Load seed data")
+        commands_table.add_row("database chat <path>", "Interactive schema design")
+        commands_table.add_row("database edit <schema>", "Visual schema editor")
+        commands_table.add_row("database optimize <schema>", "AI-powered optimization")
+        commands_table.add_row("database mcp <action>", "Manage MCP servers")
         commands_table.add_row("", "")
 
         # Backend Generation
@@ -1772,11 +2590,19 @@ def main(ctx: typer.Context):
         commands_table.add_row("[bold yellow]Interactive[/]", "")
         commands_table.add_row("chat <path>", "Chat with codebase")
         commands_table.add_row("edit <path>", "Agentic edit mode - edit with natural language")
+        commands_table.add_row("", "")
+
+        # Fullstack (NEW)
+        commands_table.add_row("[bold yellow]Synchronized Fullstack[/]", "")
+        commands_table.add_row(
+            "fullstack <frontend> [options]",
+            "Generate synchronized database + backend from frontend"
+        )
 
         console.print(
             Panel(
                 commands_table,
-                title="[bold]All Commands (21 Total)[/]",
+                title="[bold]All Commands (32 Total)[/]",
                 border_style="cyan",
                 padding=(1, 2),
             )

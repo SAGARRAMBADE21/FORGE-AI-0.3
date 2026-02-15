@@ -222,7 +222,7 @@ class ApiContractExtractor:
                     if model.name == call.body_type:
                         return RequestBodySchema(
                             schema=self._model_to_schema(
-                                model, exclude=["id", "createdAt", "updatedAt"]
+                                model, exclude=["id", "created_at", "updated_at", "createdAt", "updatedAt"]
                             )
                         )
 

@@ -158,11 +158,28 @@ class FullStackAgent:
     # ═══════════════════════════════════════════════════════════════════════
 
     async def generate_backend(
-        self, progress: Callable[[str, str], None] | None = None
+        self, 
+        progress: Callable[[str, str], None] | None = None,
+        models: list[InferredModel] | None = None,
+        relations: list | None = None,
     ) -> GenerationResult:
-        """Generate complete backend from frontend analysis."""
+        """Generate complete backend from frontend analysis.
+        
+        Args:
+            progress: Progress callback
+            models: Pre-inferred models (if available, skips re-analysis)
+            relations: Pre-inferred relations (if available)
+        """
         if not self._initialized:
             await self.initialize(progress)
+
+        # If models are provided, use them directly instead of re-analyzing
+        if models is not None:
+            return await self._backend_agent.generate_from_models(
+                models=models,
+                relations=relations or [],
+                progress=progress
+            )
 
         return await self._backend_agent.generate_backend(progress)
 

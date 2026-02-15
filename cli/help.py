@@ -219,15 +219,6 @@ python main.py index search ./project "user authentication flow"
 ## Memory Issues
 - **Out of memory**: Enable `FORGE_LIGHTWEIGHT=true` in .env
 - **Slow startup**: This is normal on first run (loading models)
-
-## Common Fixes
-```bash
-# Clear cache if issues persist
-python -c "from generation.cache_manager import get_cache; get_cache().clear()"
-
-# Reset cost tracking
-python -c "from generation.cost_tracker import get_tracker; get_tracker().clear_history()"
-```
         """
         console.print(
             Panel(Markdown(content), title="Troubleshooting", border_style="yellow")

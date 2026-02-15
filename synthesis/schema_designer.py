@@ -208,7 +208,7 @@ class SchemaDesigner:
                     references=f"{relation.target_model}.id",
                 ),
                 DatabaseColumn(
-                    name="createdAt",
+                    name="created_at",
                     db_type="TIMESTAMP WITH TIME ZONE",
                     nullable=False,
                     default="CURRENT_TIMESTAMP",

@@ -16,10 +16,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from .cache_manager import get_cache
-from .cost_tracker import get_tracker
-from .prompt_optimizer import get_optimizer
-
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +29,7 @@ class LLMConfig:
     retry_delay: float = 2.0  # Base delay in seconds
 
     # New optimization settings
-    enable_cache: bool = True
+    enable_cache: bool = False  # Caching disabled
     enable_prompt_optimization: bool = True
     enable_cost_tracking: bool = True
 
@@ -75,6 +71,7 @@ class LLMGenerator:
     def cache(self):
         """Lazy load cache."""
         if self._cache is None and self.config.enable_cache:
+            from .cache_manager import get_cache
             self._cache = get_cache()
         return self._cache
 
@@ -82,6 +79,7 @@ class LLMGenerator:
     def optimizer(self):
         """Lazy load optimizer."""
         if self._optimizer is None and self.config.enable_prompt_optimization:
+            from .prompt_optimizer import get_optimizer
             self._optimizer = get_optimizer()
         return self._optimizer
 
@@ -89,30 +87,14 @@ class LLMGenerator:
     def tracker(self):
         """Lazy load cost tracker."""
         if self._tracker is None and self.config.enable_cost_tracking:
+            from .cost_tracker import get_tracker
             self._tracker = get_tracker()
         return self._tracker
 
     def _get_client(self):
         """Lazy load LLM client with better error messages."""
         if self._client is None:
-            if self.config.provider == "huggingface":
-                try:
-                    from huggingface_hub import InferenceClient
-
-                    api_key = os.getenv("HUGGINGFACE_API_KEY") or os.getenv("HF_TOKEN")
-                    if not api_key:
-                        raise ValueError(
-                            "❌ HuggingFace API key not found!\n"
-                            "   Set HUGGINGFACE_API_KEY or HF_TOKEN in your .env file\n"
-                            "   Get your key at: https://huggingface.co/settings/tokens"
-                        )
-                    self._client = InferenceClient(
-                        model=self.config.model, token=api_key
-                    )
-                except ImportError:
-                    raise ImportError("pip install huggingface_hub")
-
-            elif self.config.provider == "anthropic":
+            if self.config.provider == "anthropic":
                 try:
                     import anthropic
 
@@ -142,57 +124,10 @@ class LLMGenerator:
                 except ImportError:
                     raise ImportError("pip install openai")
 
-            elif self.config.provider == "groq":
-                try:
-                    import groq
-
-                    api_key = os.getenv("GROQ_API_KEY")
-                    if not api_key:
-                        raise ValueError(
-                            "❌ Groq API key not found!\n"
-                            "   Set GROQ_API_KEY in your .env file\n"
-                            "   Get your key at: https://console.groq.com/keys"
-                        )
-                    self._client = groq.Groq(api_key=api_key)
-                except ImportError:
-                    raise ImportError("pip install groq")
-
-            elif self.config.provider == "openrouter":
-                try:
-                    import openai
-
-                    api_key = os.getenv("OPENROUTER_API_KEY")
-                    if not api_key:
-                        raise ValueError(
-                            "❌ OpenRouter API key not found!\n"
-                            "   Set OPENROUTER_API_KEY in your .env file\n"
-                            "   Get your key at: https://openrouter.ai/keys"
-                        )
-                    self._client = openai.OpenAI(
-                        base_url="https://openrouter.ai/api/v1", api_key=api_key
-                    )
-                except ImportError:
-                    raise ImportError("pip install openai")
-
-            elif self.config.provider == "gemini":
-                try:
-                    import google.generativeai as genai
-
-                    api_key = os.getenv("GEMINI_API_KEY")
-                    if not api_key:
-                        raise ValueError(
-                            "❌ Gemini API key not found!\n"
-                            "   Set GEMINI_API_KEY in your .env file\n"
-                            "   Get your key at: https://aistudio.google.com/apikey"
-                        )
-                    genai.configure(api_key=api_key)
-                    self._client = genai.GenerativeModel(self.config.model)
-                except ImportError:
-                    raise ImportError("pip install google-generativeai")
             else:
                 raise ValueError(
                     f"❌ Unknown provider: {self.config.provider}\n"
-                    f"   Supported: openai, anthropic, openrouter, gemini, groq, huggingface"
+                    f"   Supported: openai, anthropic"
                 )
         return self._client
 
@@ -225,29 +160,7 @@ class LLMGenerator:
             system_prompt = self.optimizer.optimize_system_prompt(system_prompt)
             user_prompt = self.optimizer.optimize_user_prompt(user_prompt)
 
-        # Check cache first
-        if self.cache and not skip_cache:
-            cached_response = self.cache.get(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                model=self.config.model,
-                provider=self.config.provider,
-                temperature=self.config.temperature,
-            )
-            if cached_response:
-                logger.info("📦 Using cached response")
-                # Track as cached request
-                if self.tracker:
-                    self.tracker.record_usage(
-                        provider=self.config.provider,
-                        model=self.config.model,
-                        input_tokens=self._estimate_tokens(system_prompt + user_prompt),
-                        output_tokens=self._estimate_tokens(cached_response),
-                        cached=True,
-                    )
-                return cached_response
-
-        # Generate response
+        # Generate response (cache disabled)
         client = self._get_client()
         response = await self._call_api(client, system_prompt, user_prompt)
 
@@ -259,17 +172,6 @@ class LLMGenerator:
                 input_tokens=self._estimate_tokens(system_prompt + user_prompt),
                 output_tokens=self._estimate_tokens(response),
                 cached=False,
-            )
-
-        # Cache the response
-        if self.cache and not skip_cache:
-            self.cache.set(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response=response,
-                model=self.config.model,
-                provider=self.config.provider,
-                temperature=self.config.temperature,
             )
 
         return response

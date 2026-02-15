@@ -371,3 +371,211 @@ def highlight_file_refs(text: str) -> str:
 def print_context_info(console: Console, info: str) -> None:
     """Print context information in dim style."""
     console.print(f"[dim]{info}[/]")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# REAL-TIME PLAN DISPLAY
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class LivePlanDisplay:
+    """
+    Display plan as it streams from LLM - real-time discovery visualization.
+    
+    Usage:
+        display = LivePlanDisplay(console)
+        display.start()
+        display.update("model", "User (email, name, password)", model_obj)
+        display.update("endpoint", "GET /users", endpoint_obj)
+        display.stop()
+    """
+    
+    # Icons for each component type
+    ICONS = {
+        "status": "✦",
+        "model": "📦",
+        "endpoint": "🔌",
+        "auth": "🔐",
+        "middleware": "⚙️",
+        "warning": "⚠️",
+    }
+    
+    def __init__(self, console: Console):
+        self.console = console
+        self.discoveries = []
+        
+    def start(self) -> None:
+        """Start the live display with header."""
+        self.console.print()
+        self.console.print(Panel.fit(
+            "[bold cyan]🔮 REALTIME FULLSTACK PLANNING[/]",
+            border_style="cyan",
+        ))
+        self.console.print()
+    
+    def update(self, component_type: str, message: str, data=None) -> None:
+        """
+        Display a discovered component.
+        
+        Args:
+            component_type: "status", "model", "endpoint", "auth", "middleware", "warning"
+            message: Description of the component
+            data: Optional component data object
+        """
+        icon = self.ICONS.get(component_type, "•")
+        
+        if component_type == "status":
+            self.console.print(f"[{COLORS['agent_pink']}]{icon}[/] [dim]{message}[/]")
+        elif component_type == "model":
+            self.console.print(f"[{COLORS['success_green']}]{icon}[/] Discovered: [bold]{message}[/]")
+            self.discoveries.append(("model", message))
+        elif component_type == "endpoint":
+            self.console.print(f"[{COLORS['file_cyan']}]{icon}[/] Adding: [cyan]{message}[/]")
+            self.discoveries.append(("endpoint", message))
+        elif component_type == "auth":
+            self.console.print(f"[{COLORS['warning_yellow']}]{icon}[/] Detected: [yellow]{message}[/]")
+            self.discoveries.append(("auth", message))
+        elif component_type == "middleware":
+            self.console.print(f"[dim]{icon}[/] Adding: {message}")
+            self.discoveries.append(("middleware", message))
+        elif component_type == "warning":
+            self.console.print(f"[{COLORS['warning_yellow']}]{icon}[/] [yellow]{message}[/]")
+    
+    def stop(self) -> None:
+        """End the live display."""
+        self.console.print()
+
+
+def print_plan_summary(console: Console, plan) -> None:
+    """
+    Print the final plan summary in a styled panel.
+    
+    Args:
+        console: Rich console
+        plan: FullstackPlan object
+    """
+    # Build summary content
+    models_str = ", ".join(m.name for m in plan.models) if plan.models else "None"
+    
+    content = (
+        f"[bold]Models:[/]     {len(plan.models)} ({models_str})\n"
+        f"[bold]Endpoints:[/]  {len(plan.endpoints)}\n"
+        f"[bold]Middleware:[/] {len(plan.middleware)}\n"
+        f"[bold]Auth:[/]       {plan.auth_type or 'None'}\n"
+        f"[bold]Database:[/]   {plan.database_type}\n"
+        f"[bold]Framework:[/]  {plan.backend_framework}\n"
+        f"[bold]Est. Files:[/] ~{plan.estimated_files}"
+    )
+    
+    console.print(Panel(
+        content,
+        title="[bold cyan]PLAN SUMMARY[/]",
+        border_style="cyan",
+    ))
+    
+    # Show warnings if any
+    if plan.warnings:
+        console.print()
+        for warning in plan.warnings:
+            console.print(f"[{COLORS['warning_yellow']}]⚠️[/] [yellow]{warning}[/]")
+
+
+def print_plan_prompt(console: Console) -> str:
+    """
+    Show interactive prompt for plan approval/modification.
+    
+    Returns:
+        User input: "y" to proceed, "n" to cancel, or modification request
+    """
+    console.print()
+    response = console.input(
+        f"[{COLORS['prompt_gray']}]>[/] Proceed, or type to add/modify ([cyan]y[/]/[red]n[/]): "
+    ).strip()
+    return response if response else "y"
+
+
+def print_generation_start(console: Console) -> None:
+    """Print message when generation starts."""
+    console.print()
+    console.print(f"[{COLORS['agent_pink']}]✦[/] [bold]Generating backend...[/]")
+    console.print()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TASK CHAT DISPLAY
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def print_task_start(console: Console, task_type: str, description: str = "") -> None:
+    """Print task start indicator."""
+    console.print()
+    console.print(f"[{COLORS['agent_pink']}]✦[/] [bold]{task_type}[/] {description}")
+
+
+def print_task_step(console: Console, message: str, icon: str = "•") -> None:
+    """Print a task progress step."""
+    console.print(f"  [{COLORS['file_cyan']}]{icon}[/] {message}")
+
+
+def print_task_result(console: Console, success: bool, message: str) -> None:
+    """Print task result."""
+    console.print()
+    if success:
+        console.print(f"[{COLORS['success_green']}]✓[/] [bold]{message}[/]")
+    else:
+        console.print(f"[{COLORS['error_red']}]✗[/] [bold]{message}[/]")
+
+
+def print_task_approval_prompt(console: Console) -> str:
+    """Show approval prompt for task execution."""
+    console.print()
+    response = console.input(
+        f"[{COLORS['prompt_gray']}]>[/] Execute this task? ([cyan]y[/]/[red]n[/]): "
+    ).strip()
+    return response.lower() if response else "y"
+
+
+def print_chat_commands(console: Console) -> None:
+    """Print available chat commands."""
+    console.print()
+    console.print(Panel(
+        "[bold]Available Commands:[/]\n\n"
+        f"  [{COLORS['file_cyan']}]/generate[/] <path>     Generate backend from frontend\n"
+        f"  [{COLORS['file_cyan']}]/add endpoint[/] <spec> Add new API endpoint\n"
+        f"  [{COLORS['file_cyan']}]/add model[/] <name>    Add new data model\n"
+        f"  [{COLORS['file_cyan']}]/add auth[/] [type]     Add authentication\n"
+        f"  [{COLORS['file_cyan']}]/search[/] <query>      Search codebase\n"
+        f"  [{COLORS['file_cyan']}]/help[/]                Show this help\n"
+        f"  [{COLORS['file_cyan']}]/exit[/]                Exit chat\n\n"
+        "[dim]Or use natural language:[/]\n"
+        '  "add rate limiting to all endpoints"\n'
+        '  "generate backend from ./frontend"',
+        title="[bold cyan]Task Chat[/]",
+        border_style="cyan",
+    ))
+
+
+def print_task_callback(console: Console):
+    """Create a callback function for task progress."""
+    def callback(msg_type: str, message: str, data=None):
+        if msg_type == "status":
+            console.print(f"[{COLORS['agent_pink']}]✦[/] [dim]{message}[/]")
+        elif msg_type == "step":
+            console.print(f"  [{COLORS['file_cyan']}]•[/] {message}")
+        elif msg_type == "result":
+            console.print(f"[{COLORS['success_green']}]✓[/] {message}")
+        elif msg_type == "error":
+            console.print(f"[{COLORS['error_red']}]✗[/] {message}")
+        elif msg_type == "model":
+            console.print(f"[{COLORS['success_green']}]📦[/] Discovered: [bold]{message}[/]")
+        elif msg_type == "endpoint":
+            console.print(f"[{COLORS['file_cyan']}]🔌[/] Adding: [cyan]{message}[/]")
+        elif msg_type == "auth":
+            console.print(f"[{COLORS['warning_yellow']}]🔐[/] Detected: [yellow]{message}[/]")
+        elif msg_type == "middleware":
+            console.print(f"[dim]⚙️[/] Adding: {message}")
+        elif msg_type == "warning":
+            console.print(f"[{COLORS['warning_yellow']}]⚠️[/] [yellow]{message}[/]")
+    return callback
+
+

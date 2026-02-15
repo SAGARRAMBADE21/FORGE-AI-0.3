@@ -35,21 +35,20 @@ class FormExtractor:
             if not content:
                 continue
 
-            # React Hook Form
-            if "useForm" in content:
-                forms.extend(self._extract_rhf(content, file_info.path))
-
-            # Formik
-            if "useFormik" in content or "<Formik" in content:
-                forms.extend(self._extract_formik(content, file_info.path))
-
-            # Shadcn/Radix Form (uses react-hook-form under the hood)
-            if "<Form" in content and "FormField" in content:
-                forms.extend(self._extract_shadcn_form(content, file_info.path))
-
-            # TanStack Form
+            # Check most specific form libraries first to avoid duplicates
+            
+            # TanStack Form (check first - most specific with package name)
             if "useForm" in content and "@tanstack/react-form" in content:
                 forms.extend(self._extract_tanstack_form(content, file_info.path))
+            # Shadcn/Radix Form (uses react-hook-form under the hood, check before generic RHF)
+            elif "<Form" in content and "FormField" in content:
+                forms.extend(self._extract_shadcn_form(content, file_info.path))
+            # Formik
+            elif "useFormik" in content or "<Formik" in content:
+                forms.extend(self._extract_formik(content, file_info.path))
+            # React Hook Form (generic, check last)
+            elif "useForm" in content:
+                forms.extend(self._extract_rhf(content, file_info.path))
 
             # Next.js Server Actions
             if "use server" in content or "formAction" in content:

@@ -169,7 +169,7 @@ class SearchConfig:
     retrieval_k: int = 100
     threshold: float = 0.5
     hybrid_alpha: float = 0.7
-    rerank: bool = True
+    rerank: bool = False  # Disabled to avoid PyTorch/CUDA memory issues
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     rerank_k: int = 20
     recency_boost: float = 0.1

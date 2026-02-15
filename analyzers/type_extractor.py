@@ -296,24 +296,18 @@ class TypeExtractor:
         return "string"
 
     def _is_data_model(self, model: DataModel) -> bool:
-        """Check if this looks like a data model."""
-        skip_suffixes = [
-            "props",
-            "state",
-            "context",
-            "handler",
-            "config",
-            "options",
-            "params",
-            "settings",
-            "theme",
-            "style",
-        ]
-
-        name_lower = model.name.lower()
-        if any(name_lower.endswith(s) for s in skip_suffixes):
+        """
+        Check if this looks like a data model using enhanced filtering.
+        
+        Uses centralized domain_model_filter with file path awareness.
+        """
+        from utils.domain_model_filter import is_domain_model
+        
+        # Use centralized filter with file path
+        if not is_domain_model(model.name, model.source_file):
             return False
-
+        
+        # Additional field-based validation
         field_names = {f.name.lower() for f in model.fields}
         indicators = {
             # Common data model indicators
@@ -352,12 +346,21 @@ class TypeExtractor:
             "zipcode",
             "zip_code",
             "country",
-            # Auth indicators
+            # Auth indicators (but not for form data!)
             "token",
-            "password",
             "role",
         }
-
+        
+        # Must have at least one domain model indicator field
+        # BUT exclude if it has "password" field AND ends with FormData/Form
+        has_password = "password" in field_names
+        name_lower = model.name.lower()
+        is_form_type = name_lower.endswith("formdata") or name_lower.endswith("form") or name_lower.endswith("schema")
+        
+        # If it's a form type with password, exclude it
+        if is_form_type and has_password:
+            return False
+        
         return bool(field_names & indicators)
 
     def _is_model_class(self, symbol) -> bool:

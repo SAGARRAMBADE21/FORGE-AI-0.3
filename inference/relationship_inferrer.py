@@ -72,7 +72,7 @@ class RelationshipInferrer:
                             relation_type=InferredRelationType.MANY_TO_ONE,
                             source_field=field.name,
                             target_field="id",
-                            evidence=field.evidence,
+                            evidence=getattr(field, 'evidence', []),
                         )
                     )
 
@@ -87,7 +87,7 @@ class RelationshipInferrer:
                             relation_type=InferredRelationType.MANY_TO_ONE,
                             source_field=field.name,
                             target_field="id",
-                            evidence=field.evidence,
+                            evidence=getattr(field, 'evidence', []),
                         )
                     )
 
@@ -101,8 +101,8 @@ class RelationshipInferrer:
                 field.name.lower() == 'children'
             )
             
-            if is_array_field and field.relation_to:
-                target_lower = field.relation_to.lower()
+            if is_array_field and getattr(field, 'relation_to', None):
+                target_lower = getattr(field, 'relation_to', None).lower()
                 if target_lower in model_names:
                     relations.append(
                         InferredRelation(
@@ -111,13 +111,13 @@ class RelationshipInferrer:
                             relation_type=InferredRelationType.ONE_TO_MANY,
                             source_field=field.name,
                             target_field=f"{model.name.lower()}Id",
-                            evidence=field.evidence,
+                            evidence=getattr(field, 'evidence', []),
                         )
                     )
 
             # Pattern 4: Field name matches a model name (singular) - e.g., user: User
             field_lower = field.name.lower()
-            if field_lower in model_names and field.field_type == InferredFieldType.RELATION:
+            if field_lower in model_names and getattr(field, 'field_type', None) == InferredFieldType.RELATION:
                 relations.append(
                     InferredRelation(
                         source_model=model.name,
@@ -125,7 +125,7 @@ class RelationshipInferrer:
                         relation_type=InferredRelationType.MANY_TO_ONE,
                         source_field=f"{field.name}Id",
                         target_field="id",
-                        evidence=field.evidence,
+                        evidence=getattr(field, 'evidence', []),
                     )
                 )
 
@@ -139,15 +139,15 @@ class RelationshipInferrer:
                         relation_type=InferredRelationType.ONE_TO_MANY,
                         source_field=field.name,
                         target_field=f"{model.name.lower()}Id",
-                        evidence=field.evidence,
+                        evidence=getattr(field, 'evidence', []),
                     )
                 )
 
             # Pattern 6: relation type reference (existing logic)
-            if field.field_type == InferredFieldType.RELATION and field.relation_to:
-                target_lower = field.relation_to.lower()
+            if getattr(field, 'field_type', None) == InferredFieldType.RELATION and getattr(field, 'relation_to', None):
+                target_lower = getattr(field, 'relation_to', None).lower()
                 if target_lower in model_names:
-                    rel_type = field.relation_type or InferredRelationType.MANY_TO_ONE
+                    rel_type = getattr(field, 'relation_type', None) or InferredRelationType.MANY_TO_ONE
                     relations.append(
                         InferredRelation(
                             source_model=model.name,
@@ -155,7 +155,7 @@ class RelationshipInferrer:
                             relation_type=rel_type,
                             source_field=field.name,
                             target_field="id",
-                            evidence=field.evidence,
+                            evidence=getattr(field, 'evidence', []),
                         )
                     )
 
@@ -168,7 +168,7 @@ class RelationshipInferrer:
                         relation_type=InferredRelationType.SELF_REFERENTIAL,
                         source_field=field.name,
                         target_field="id",
-                        evidence=field.evidence,
+                        evidence=getattr(field, 'evidence', []),
                     )
                 )
 

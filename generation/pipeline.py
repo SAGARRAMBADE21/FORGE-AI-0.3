@@ -12,6 +12,7 @@ from config.settings import settings
 from .llm_generator import LLMGenerator
 from .output_parser import OutputParser
 from .prompt_builder import PromptBuilder
+from .code_validator import CodeValidator, validate_generated_code
 
 
 class GenerationStage(Enum):
@@ -158,6 +159,19 @@ class GenerationPipeline:
 
         # Parse output into files
         files = self.parser.parse(response)
+        
+        # Validate generated code
+        if files:
+            is_valid, errors = validate_generated_code(files)
+            if not is_valid:
+                # Log validation errors but don't fail - LLM might fix in next iteration
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Validation errors in stage {stage}: {errors}")
+                # Store errors in context for potential retry
+                if not hasattr(context, 'validation_errors'):
+                    context.validation_errors = []
+                context.validation_errors.extend(errors)
 
         # Add to generated files
         context.generated_files.update(files)

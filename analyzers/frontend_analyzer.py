@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from analyzers.api_extractor import APIExtractor
@@ -329,7 +330,3 @@ class FrontendAnalyzer:
             return FrameworkType.EXPRESS
 
         return FrameworkType.UNKNOWN
-
-
-# Import re at module level
-import re

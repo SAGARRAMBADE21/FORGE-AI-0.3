@@ -1,0 +1,455 @@
+<mxfile host="app.diagrams.net" modified="2026-02-15T00:00:00.000Z" agent="FORGE AI Clean" version="24.0.0">
+  <diagram name="FORGE AI Architecture" id="main">
+    <mxGraphModel dx="2400" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1600">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- Title -->
+        <mxCell id="title" value="FORGE AI - Full-Stack Code Generation System" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1;fontColor=#1a1a1a;" vertex="1" parent="1">
+          <mxGeometry x="600" y="20" width="600" height="40" as="geometry"/>
+        </mxCell>
+        
+        <!-- Main Entry Point -->
+        <mxCell id="entry" value="CLI Entry Point (main.py)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ff6b6b;strokeColor=#c92a2a;fontColor=#FFFFFF;fontSize=16;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="100" width="200" height="60" as="geometry"/>
+        </mxCell>
+        
+        <!-- Four Main Workflows Container -->
+        <mxCell id="workflows-title" value="Main Workflows" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#2d3436;" vertex="1" parent="1">
+          <mxGeometry x="950" y="200" width="300" height="30" as="geometry"/>
+        </mxCell>
+        
+        <!-- Workflow 1: Code Indexing -->
+        <mxCell id="workflow1" value="1. CODE INDEXING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4ecdc4;strokeColor=#0d9488;fontColor=#FFFFFF;fontSize=14;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="280" width="400" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w1-agent" value="CodeAgent" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#45b7d1;strokeColor=#0891b2;fontColor=#FFFFFF;fontSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="360" width="180" height="40" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w1-indexer" value="Unified Indexer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#96ceb4;strokeColor=#059669;fontColor=#FFFFFF;fontSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="420" width="180" height="40" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w1-components" value="• File Index&#10;• Symbol Table&#10;• Dependency Graph" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="480" width="180" height="70" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w1-embedder" value="Embedder" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffeaa7;strokeColor=#f59e0b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="420" width="180" height="40" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w1-vector" value="Vector Store&#10;(ChromaDB)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#74b9ff;strokeColor=#0984e3;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="490" width="100" height="60" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w1-features" value="Features:&#10;• Semantic Search&#10;• Go to Definition&#10;• Find References&#10;• Code Navigation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#81ecec;strokeColor=#00b894;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="570" width="180" height="90" as="geometry"/>
+        </mxCell>
+        
+        <!-- Workflow 2: Backend Generation -->
+        <mxCell id="workflow2" value="2. BACKEND GENERATION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4ecdc4;strokeColor=#0d9488;fontColor=#FFFFFF;fontSize=14;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="280" width="500" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w2-agent" value="BackendAgent" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#45b7d1;strokeColor=#0891b2;fontColor=#FFFFFF;fontSize=12;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="360" width="500" height="40" as="geometry"/>
+        </mxCell>
+        
+        <!-- Phase 1: Analysis -->
+        <mxCell id="phase1-title" value="Phase 1: Frontend Analysis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#74b9ff;strokeColor=#0984e3;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="420" width="500" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="analyzers" value="Analyzers" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#96ceb4;strokeColor=#059669;fontColor=#FFFFFF;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="470" width="150" height=" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="analyzer-list" value="• Component Analyzer&#10;• Form Extractor&#10;• API Extractor&#10;• Type Extractor&#10;• Zod Schema Extractor&#10;• TypeScript AST Analyzer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="600" y="500" width="150" height="100" as="geometry"/>
+        </mxCell>
+        
+        <!-- Phase 2: Inference -->
+        <mxCell id="phase2-title" value="Phase 2: Model Inference" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a29bfe;strokeColor=#6366f1;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="770" y="470" width="160" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="inference-list" value="• Evidence Collector&#10;• Model Inference Engine&#10;• Relationship Inferrer&#10;• API Contract Extractor&#10;• Auth Analyzer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="770" y="510" width="160" height="90" as="geometry"/>
+        </mxCell>
+        
+        <!-- Phase 3: Synthesis -->
+        <mxCell id="phase3-title" value="Phase 3: Architecture Design" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fd79a8;strokeColor=#e84393;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="470" width="150" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="synthesis-list" value="• Schema Designer&#10;• API Architect&#10;• Service Architect&#10;• Auth Planner" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="950" y="510" width="150" height="90" as="geometry"/>
+        </mxCell>
+        
+        <!-- Phase 4: Code Generation -->
+        <mxCell id="phase4-title" value="Phase 4: Code Generation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffeaa7;strokeColor=#f59e0b;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="620" width="500" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="gen-pipeline" value="Generation Pipeline" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fab1a0;strokeColor=#e17055;fontColor=#FFFFFF;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="670" width="150" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="llm-providers" value="LLM Providers" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="710" width="150" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="providers" value="OpenAI | Anthropic | Gemini" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="600" y="745" width="150" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="validation" value="Code Validator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#55efc4;strokeColor=#00b894;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="770" y="670" width="150" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="execution" value="Change Engine" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#55efc4;strokeColor=#00b894;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="670" width="150" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="backend-output" value="📄 Generated Backend Code" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a29bfe;strokeColor=#6366f1;fontColor=#FFFFFF;fontSize=12;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="775" y="790" width="320" height="45" as="geometry"/>
+        </mxCell>
+        
+        <!-- Workflow 3: Database Generation -->
+        <mxCell id="workflow3" value="3. DATABASE GENERATION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4ecdc4;strokeColor=#0d9488;fontColor=#FFFFFF;fontSize=14;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="280" width="450" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="w3-orchestrator" value="Database Orchestrator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#45b7d1;strokeColor=#0891b2;fontColor=#FFFFFF;fontSize=12;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="360" width="450" height="40" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="agent-team-title" value="Multi-Agent Team" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fab1a0;strokeColor=#e17055;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="420" width="450" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="agent1" value="Lead Architect" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ff7675;strokeColor=#d63031;fontColor=#FFFFFF;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="470" width="130" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="agent2" value="Data Modeler" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ff7675;strokeColor=#d63031;fontColor=#FFFFFF;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="470" width="130" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="agent3" value="DBA Expert" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ff7675;strokeColor=#d63031;fontColor=#FFFFFF;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="470" width="130" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="agent4" value="SQL Writer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ff7675;strokeColor=#d63031;fontColor=#FFFFFF;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1275" y="520" width="130" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="agent5" value="Reviewer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ff7675;strokeColor=#d63031;fontColor=#FFFFFF;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1425" y="520" width="130" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="schema-gen" value="Schema Generator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffeaa7;strokeColor=#f59e0b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="580" width="200" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="db-converters-title" value="Database Converters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e17055;strokeColor=#d63031;fontColor=#FFFFFF;fontSize=10;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="635" width="450" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="mysql-c" value="MySQL" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=9;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="675" width="85" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="postgres-c" value="PostgreSQL" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=9;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="675" width="85" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="mongodb-c" value="MongoDB" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=9;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="675" width="85" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="sqlite-c" value="SQLite" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=9;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="675" width="70" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="others-c" value="+" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=9;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1585" y="675" width="40" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="seed-gen" value="Seed Data Generator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#55efc4;strokeColor=#00b894;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1435" y="580" width="150" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="migration" value="Migration Engine" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#81ecec;strokeColor=#00b894;fontSize=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="720" width="150" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="db-output" value="📄 Database Schema + Migrations + Seeds" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a29bfe;strokeColor=#6366f1;fontColor=#FFFFFF;fontSize=12;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="790" width="350" height="45" as="geometry"/>
+        </mxCell>
+        
+        <!-- Workflow 4: Unified Fullstack -->
+        <mxCell id="workflow4" value="4. UNIFIED FULLSTACK (Synchronized)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4ecdc4;strokeColor=#0d9488;fontColor=#FFFFFF;fontSize=14;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="900" width="600" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="unified-workflow" value="Unified Workflow Engine" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#45b7d1;strokeColor=#0891b2;fontColor=#FFFFFF;fontSize=12;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="970" width="600" height="40" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="fullstack-agent-box" value="FullStack Agent" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#74b9ff;strokeColor=#0984e3;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1030" width="280" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="realtime-planner" value="Realtime Planner" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fd79a8;strokeColor=#e84393;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="1030" width="300" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="sync-models" value="🔄 SYNCHRONIZED MODELS&#10;(Single Source of Truth)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="850" y="1090" width="300" height="50" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="parallel-gen" value="Parallel Generation" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#2d3436;" vertex="1" parent="1">
+          <mxGeometry x="875" y="1160" width="250" height="20" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="db-gen-box" value="Database Schema" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffeaa7;strokeColor=#f59e0b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="750" y="1200" width="200" height="40" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="backend-gen-box" value="Backend Code" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffeaa7;strokeColor=#f59e0b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="1200" width="200" height="40" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="fullstack-output" value="✅ Fully Synchronized Full-Stack Application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00b894;strokeColor=#00875e;fontColor=#FFFFFF;fontSize=13;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="775" y="1270" width="400" height="50" as="geometry"/>
+        </mxCell>
+        
+        <!-- Supporting Systems -->
+        <mxCell id="support-title" value="Supporting Systems" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#2d3436;" vertex="1" parent="1">
+          <mxGeometry x="100" y="900" width="400" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="integration" value="🔌 Integration Services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ff7675;strokeColor=#d63031;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="950" width="180" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="int-list" value="• Payment Processing (Stripe)&#10;• Cloud Storage (S3, Azure)&#10;• AI/ML Integration&#10;• Email Services" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="995" width="180" height="75" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="security" value="🔒 Security" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ff6b81;strokeColor=#c92a2a;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1090" width="180" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="sec-list" value="• Input Validation&#10;• Auth Guards&#10;• Secure Code Generation&#10;• SQL Injection Prevention" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1135" width="180" height="75" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="edit-console" value="✏️ Edit Console" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdcb6e;strokeColor=#e17055;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="950" width="180" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="edit-list" value="• Code Editor&#10;• Schema Editor&#10;• Diff Viewer&#10;• NLP Interpreter" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="320" y="995" width="180" height="75" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="chunking-sys" value="📦 Context & Chunking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#74b9ff;strokeColor=#0984e3;fontColor=#FFFFFF;fontSize=11;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="1090" width="180" height="35" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="chunk-list" value="• Dynamic Chunker&#10;• Context Enricher&#10;• Overlap Manager&#10;• Token Budgeter" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="320" y="1135" width="180" height="75" as="geometry"/>
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend-title" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#2d3436;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1350" width="100" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="leg-entry" value="Entry Point" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ff6b6b;strokeColor=#c92a2a;fontColor=#FFFFFF;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1385" width="90" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="leg-workflow" value="Workflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4ecdc4;strokeColor=#0d9488;fontColor=#FFFFFF;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1385" width="90" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="leg-agent" value="Agent" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#45b7d1;strokeColor=#0891b2;fontColor=#FFFFFF;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1385" width="90" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="leg-analyzer" value="Analyzer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#96ceb4;strokeColor=#059669;fontColor=#FFFFFF;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1385" width="90" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="leg-generator" value="Generator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffeaa7;strokeColor=#f59e0b;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1420" width="90" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="leg-output" value="Output" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#a29bfe;strokeColor=#6366f1;fontColor=#FFFFFF;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1420" width="90" height="25" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="leg-storage" value="Storage" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=5;fillColor=#74b9ff;strokeColor=#0984e3;fontColor=#FFFFFF;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1420" width="50" height="25" as="geometry"/>
+        </mxCell>
+        
+        <!-- Key Features Box -->
+        <mxCell id="features-box" value="🌟 Key Features" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6c5ce7;strokeColor=#5f3dc4;fontColor=#FFFFFF;fontSize=12;fontStyle=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1260" width="400" height="30" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="features-content" value="✓ AI-Powered Code Generation (OpenAI, Anthropic, Gemini)&#10;✓ Multi-Database Support (MySQL, PostgreSQL, MongoDB, SQLite, etc.)&#10;✓ Multi-Agent Collaboration System&#10;✓ Semantic Code Search & Navigation&#10;✓ Automatic Schema Synchronization&#10;✓ TypeScript/JavaScript Frontend Analysis&#10;✓ FastAPI/Express/Django Backend Generation&#10;✓ Security-First Code Generation&#10;✓ Rollback & Change Management&#10;✓ Integration with External Services" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dfe6e9;strokeColor=#636e72;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1300" width="400" height="140" as="geometry"/>
+        </mxCell>
+        
+        <!-- Arrows -->
+        <mxCell edge="1" parent="1" source="entry" target="workflow1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="240"/>
+              <mxPoint x="300" y="240"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="entry" target="workflow2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="240"/>
+              <mxPoint x="850" y="240"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="entry" target="workflow3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="240"/>
+              <mxPoint x="1425" y="240"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="entry" target="workflow4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="240"/>
+              <mxPoint x="1000" y="240"/>
+              <mxPoint x="1000" y="875"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="workflow1" target="w1-agent">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="w1-agent" target="w1-indexer">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="w1-indexer" target="w1-embedder">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="w1-embedder" target="w1-vector">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="workflow2" target="w2-agent">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="w2-agent" target="phase1-title">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="analyzer-list" target="phase2-title">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="inference-list" target="phase3-title">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="synthesis-list" target="phase4-title">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="phase4-title" target="gen-pipeline">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="gen-pipeline" target="llm-providers">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="validation" target="backend-output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="execution" target="backend-output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="workflow3" target="w3-orchestrator">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="w3-orchestrator" target="agent-team-title">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="agent1" target="schema-gen">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="schema-gen" target="db-converters-title">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="migration" target="db-output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="workflow4" target="unified-workflow">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="unified-workflow" target="fullstack-agent-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="unified-workflow" target="realtime-planner">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="realtime-planner" target="sync-models">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="sync-models" target="db-gen-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="sync-models" target="backend-gen-box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="db-gen-box" target="fullstack-output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+        <mxCell edge="1" parent="1" source="backend-gen-box" target="fullstack-output">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -103,6 +103,23 @@ This collection provides detailed, expert-level guidance for implementing backen
     - Scaling realtime systems
     - Security and authentication
 
+11. **`code_quality_checklist_prompt.py`**
+    - Pre-generation validation checks
+    - Service layer consistency verification
+    - Repository pattern validation
+    - Authentication completeness checks
+    - Import and dependency verification
+    - Schema and model alignment
+    - Route and endpoint validation
+
+12. **`critical_files_prompt.py`**
+    - Essential file generation rules
+    - Requirements and dependency files
+    - Configuration files (settings, env)
+    - Application entry points
+    - Database and migration setup
+    - Ensures all critical files are present for a working application
+
 ## Usage
 
 ### In Code Generation
@@ -114,7 +131,9 @@ from generation.prompts.backend import (
     BACKEND_MASTER_PROMPT,
     HTTP_FUNDAMENTALS_PROMPT,
     MIDDLEWARE_PROMPT,
-    CACHING_STRATEGIES_PROMPT
+    CACHING_STRATEGIES_PROMPT,
+    CODE_QUALITY_CHECKLIST_PROMPT,
+    CRITICAL_FILES_PROMPT
 )
 
 # Use master prompt for comprehensive backend generation
@@ -142,6 +161,8 @@ Now implement a REST API with proper middleware...
 - **Async operations**: Use `TASK_QUEUING_PROMPT`
 - **Debugging and monitoring**: Use `OBSERVABILITY_PROMPT`
 - **Chat/notifications**: Use `REALTIME_SYSTEMS_PROMPT`
+- **Pre-generation validation**: Use `CODE_QUALITY_CHECKLIST_PROMPT`
+- **Ensuring essential files**: Use `CRITICAL_FILES_PROMPT`
 
 ## Topics Covered
 
